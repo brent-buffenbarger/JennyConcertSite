@@ -1,0 +1,47 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
+
+# Env files (never commit real credentials)
+.env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+backend/.env
+
+# Backend runtime data that must live only on your Mac
+data/concert-uploads/*
+!data/concert-uploads/.gitkeep
+
+# Editor + tooling
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Agent scratch / opencode caches
+.agent/runs/
+.opencode/node_modules/
+scratchpad/

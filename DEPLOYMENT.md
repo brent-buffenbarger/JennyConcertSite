@@ -1,0 +1,389 @@
+# Deployment Guide
+
+End-to-end walkthrough for shipping Jenny & Brent's Concert Log to the public internet.
+
+**The shape of the deployment:**
+
+- **Frontend** (React SPA) → **Cloudflare Pages**. Free, auto-deploys on every push to `main`.
+- **Backend** (FastAPI, needs macOS Notes access) → runs on **your Mac**, exposed to the internet through a free **Cloudflare Tunnel**.
+- **Uploaded photos + Apple Notes** → stay on your Mac. The Mac is the source of truth.
+- **Editing** → protected by HTTP Basic auth. Public browsing is open; adding/editing requires the shared password you set up.
+- **Cost:** ~$10/year for the domain. Everything else is free.
+- **Trade-off:** your Mac must stay on and connected for editing and photo uploads to work. If the Mac sleeps or reboots, editing breaks until it's back. Public browsing keeps working if you cache aggressively — see the "Optional resilience" section at the end.
+
+The whole setup takes about 90 minutes end to end, mostly waiting for DNS.
+
+---
+
+## Part 1 &mdash; Prerequisites
+
+Before you start, you'll want:
+
+1. **A domain name.** Cheapest reliable registrar for a `.com` is Cloudflare Registrar itself (~$10/year, at cost, no markup). Namecheap and Porkbun are the next cheapest. Skip GoDaddy.
+2. **A Cloudflare account.** Free at [dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up).
+3. **A GitHub account** with access to the `brent-buffenbarger/JennyConcertSite` repo. You already have this.
+4. **`cloudflared` installed locally** on your Mac. We'll cover this in Part 3.
+
+You do **not** need an AWS account. You do **not** need a credit card for Cloudflare Pages / R2 free tier / Tunnel.
+
+---
+
+## Part 2 &mdash; Buy the domain and put it on Cloudflare
+
+If you already own a domain and it's already on Cloudflare, skip to Part 3.
+
+### 2a. Register the domain
+
+Two paths:
+
+**Easiest &mdash; buy it on Cloudflare directly:**
+
+1. Sign in to [dash.cloudflare.com](https://dash.cloudflare.com).
+2. Go to **Domain Registration → Register Domains**.
+3. Search for the name you want. Aim for `.com` if available; it's the most universally understood. Pick something short. `jennyconcerts.com` if you can, otherwise `jennysshows.com` or similar.
+4. Buy it. Cloudflare bills at cost (~$10/year for a `.com`, ~$8/year for some other TLDs). No renewal upsells, no privacy add-ons to buy separately.
+
+If you buy through Cloudflare Registrar, DNS is automatically hosted on Cloudflare and you can skip to Part 3.
+
+**If you already have a domain at another registrar:**
+
+1. Sign in to Cloudflare.
+2. Click **+ Add a domain**. Enter the domain.
+3. Choose the **Free** plan.
+4. Cloudflare will show you two nameservers (like `art.ns.cloudflare.com`, `lea.ns.cloudflare.com`).
+5. Log into your current registrar and change the domain's nameservers to the two Cloudflare gave you. DNS propagation takes anywhere from 5 minutes to 24 hours.
+6. Wait for Cloudflare to send you a "Your domain is now active" email. Don't proceed until you see that.
+
+---
+
+## Part 3 &mdash; Push the code to GitHub
+
+The repo `brent-buffenbarger/JennyConcertSite` is empty. Time to push the current codebase.
+
+Run these from the project root (`/Users/brent/Projects/Hobby/JennyConcertWebsite`):
+
+```bash
+# Verify the .gitignore is in place before initializing.
+cat .gitignore | head -5   # should print .DS_Store, .AppleDouble, etc.
+
+# Initialize the repo, add the remote, stage everything.
+git init -b main
+git remote add origin git@github.com:brent-buffenbarger/JennyConcertSite.git
+git add .
+git status  # scan the list for anything sensitive (like backend/.env) and abort if you see one
+
+git commit -m "Initial commit: concert journal site"
+git push -u origin main
+```
+
+If `git push` fails because of SSH auth, you'll need to add your SSH key to GitHub: [github.com/settings/keys](https://github.com/settings/keys).
+
+**Sanity check:** open [github.com/brent-buffenbarger/JennyConcertSite](https://github.com/brent-buffenbarger/JennyConcertSite) and confirm the code is there. You should see the `.github/workflows/ci.yml` file &mdash; the CI job will run automatically. Check the **Actions** tab and confirm both `Frontend build` and `Backend tests` pass green.
+
+If CI fails, fix it first before proceeding. A red CI means the code won't deploy cleanly.
+
+---
+
+## Part 4 &mdash; Deploy the frontend to Cloudflare Pages
+
+1. In the Cloudflare dashboard, go to **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
+2. Authorize Cloudflare to access your GitHub account. Grant access to the `JennyConcertSite` repo only (don't grant your whole account).
+3. Select the repo. Give the Pages project a name &mdash; this becomes the `*.pages.dev` subdomain, so pick something you're OK seeing publicly. `jenny-concerts` for example gives you `jenny-concerts.pages.dev`.
+4. Framework preset: **Vite** (Cloudflare will detect it).
+5. Set the build settings:
+   - **Root directory:** `frontend`
+   - **Build command:** `npm run build`
+   - **Build output directory:** `dist`
+6. Click **Environment variables** and add:
+   - `VITE_API_BASE_URL` = `https://api.jennyconcerts.com` (or whatever hostname you're going to use for the backend &mdash; you'll set the DNS for this in Part 5)
+7. Click **Save and Deploy**.
+
+Cloudflare will:
+- Clone the repo, run `npm ci`, run `npm run build`, upload the `dist/` folder.
+- Assign you a `https://jenny-concerts.pages.dev` URL.
+- Watch for pushes to `main` and redeploy automatically. This is your CD.
+
+The first build takes ~2 minutes. Open the Pages URL when it finishes. **The site will load but any interaction will fail** because the backend isn't reachable yet. That's expected. On to Part 5.
+
+---
+
+## Part 5 &mdash; Expose the local backend via Cloudflare Tunnel
+
+This is the piece that lets the public site talk to your Mac.
+
+### 5a. Install cloudflared
+
+```bash
+brew install cloudflared
+cloudflared --version   # confirm it installed
+```
+
+### 5b. Authenticate
+
+```bash
+cloudflared tunnel login
+```
+
+A browser opens. Sign in to Cloudflare, pick your domain (the one you set up in Part 2). This drops a `cert.pem` at `~/.cloudflared/cert.pem` &mdash; that's how cloudflared knows which Cloudflare account to talk to.
+
+### 5c. Create a tunnel
+
+```bash
+cloudflared tunnel create jenny-concerts
+```
+
+This prints a **tunnel ID** (a UUID) and creates a credentials file at `~/.cloudflared/<tunnel-id>.json`. Note the UUID; you'll paste it into a config file next.
+
+### 5d. Configure the tunnel
+
+Create `~/.cloudflared/config.yml`:
+
+```yaml
+tunnel: <paste-the-tunnel-id-here>
+credentials-file: /Users/brent/.cloudflared/<paste-the-tunnel-id-here>.json
+
+ingress:
+  - hostname: api.jennyconcerts.com
+    service: http://localhost:8000
+  - service: http_status:404
+```
+
+Replace `<paste-the-tunnel-id-here>` with the UUID from step 5c (both places).
+Replace `api.jennyconcerts.com` with `api.<your-domain>`.
+
+### 5e. Point DNS at the tunnel
+
+```bash
+cloudflared tunnel route dns jenny-concerts api.jennyconcerts.com
+```
+
+This adds a CNAME record to Cloudflare DNS pointing `api.jennyconcerts.com` to your tunnel. It resolves within seconds.
+
+### 5f. Start the tunnel
+
+```bash
+cloudflared tunnel run jenny-concerts
+```
+
+Leave that running in a terminal for now. In another terminal, start the backend:
+
+```bash
+cd /Users/brent/Projects/Hobby/JennyConcertWebsite
+source .venv/bin/activate
+uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
+
+Test it from anywhere:
+
+```bash
+curl https://api.jennyconcerts.com/health
+# {"status":"ok"}
+```
+
+If you see that, the tunnel is live. Congrats.
+
+---
+
+## Part 6 &mdash; Set the backend env vars for production
+
+Edit `backend/.env` (this file is gitignored and only lives on your Mac):
+
+```dotenv
+# Existing OpenAI keys, unchanged
+OPENAI_API_KEY=your_api_key_here
+OPENAI_MODEL=gpt-5.6
+OPENAI_ENRICHMENT_ENABLED=true
+
+# NEW: admin credentials for the shared password
+# Pick a long random password. Anyone with these can add/edit/delete on the public site.
+ADMIN_USERNAME=jenny
+ADMIN_PASSWORD=<generate-a-long-random-password>
+
+# NEW: allow the Cloudflare Pages origin(s) to call the API
+# Include both the *.pages.dev URL and your custom domain if you set one up (Part 8).
+ALLOWED_ORIGINS=https://jenny-concerts.pages.dev,https://jennyconcerts.com
+```
+
+Generate a strong password:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(24))"
+```
+
+Restart the backend (`Ctrl+C` in the uvicorn terminal, re-run the `uvicorn` command). Now hit the site &mdash; add a show, sync from Notes, upload a photo. When you first try to save, the site prompts for the username and password you just set. Enter them, they persist for the session.
+
+---
+
+## Part 7 &mdash; Make the backend + tunnel start on Mac boot
+
+You don't want to remember to start these every time. macOS has `launchd` for exactly this.
+
+### 7a. Backend service
+
+Create `~/Library/LaunchAgents/com.jenny.concerts-backend.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.jenny.concerts-backend</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/brent/Projects/Hobby/JennyConcertWebsite</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/brent/Projects/Hobby/JennyConcertWebsite/.venv/bin/uvicorn</string>
+    <string>app.main:app</string>
+    <string>--app-dir</string>
+    <string>backend</string>
+    <string>--host</string>
+    <string>127.0.0.1</string>
+    <string>--port</string>
+    <string>8000</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/jenny-backend.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/jenny-backend.err.log</string>
+</dict>
+</plist>
+```
+
+Load it:
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.jenny.concerts-backend.plist
+```
+
+### 7b. Tunnel service
+
+The easiest way is to let `cloudflared` install itself as a launchd service:
+
+```bash
+sudo cloudflared service install
+```
+
+That reads `~/.cloudflared/config.yml` and installs a system-level launchd job that starts the tunnel on boot.
+
+### 7c. Prevent your Mac from sleeping (or accept the trade-off)
+
+If your Mac sleeps, the tunnel and backend stop responding. Options:
+
+- **In System Settings → Displays → Advanced**, set "Prevent automatic sleeping on power adapter when the display is off" to on. This is the cleanest option if the Mac is plugged in.
+- Or wrap the launchd job with `caffeinate -i` in front of uvicorn (dirtier).
+- Or accept that the site's editing goes offline when the Mac sleeps; browsing may still work depending on caching.
+
+---
+
+## Part 8 &mdash; Custom domain for the frontend (optional but recommended)
+
+Right now the site is at `jenny-concerts.pages.dev`. That works, but you already bought a domain in Part 2. Use it.
+
+1. In Cloudflare Pages → your project → **Custom domains** → **Set up a custom domain**.
+2. Enter `jennyconcerts.com` (or `www.jennyconcerts.com` &mdash; pick one and stick with it).
+3. Cloudflare auto-adds the DNS records because the domain is on Cloudflare.
+4. Wait 30-60 seconds. The domain becomes live with HTTPS automatically.
+
+**Update `ALLOWED_ORIGINS` in `backend/.env`** to include the custom domain, then restart the backend so CORS accepts it.
+
+---
+
+## Part 9 &mdash; Test the full loop
+
+From a device that isn't your Mac (phone, laptop on cellular, incognito browser):
+
+1. Open the site at your custom domain.
+2. Browse. Cards, list view, atlas &mdash; everything should render.
+3. Click **Sign in**. Enter the admin credentials.
+4. Add a test show. It should save.
+5. Open Apple Notes on your Mac and confirm the show is there.
+6. Delete the test show from Apple Notes (or leave it &mdash; it's your log).
+7. Click **Sync** on the site. Confirm the site updates.
+
+If any step fails, check:
+- **Sign in fails:** wrong credentials in `backend/.env`, or CORS blocked (check browser devtools console).
+- **Adding a show 400s or 500s:** backend logs at `/tmp/jenny-backend.log` and `/tmp/jenny-backend.err.log`.
+- **Site loads but no API calls succeed:** the tunnel is down. Run `cloudflared tunnel info jenny-concerts` to check status.
+
+---
+
+## Ongoing costs
+
+| Item | Cost |
+| --- | --- |
+| Domain (Cloudflare Registrar `.com`) | ~$10/year |
+| Cloudflare Pages | $0 |
+| Cloudflare Tunnel | $0 |
+| Cloudflare DNS | $0 |
+| GitHub (public or private repo) | $0 |
+| GitHub Actions (free tier: 2000 min/month private, unlimited public) | $0 |
+| OpenAI enrichment (existing) | whatever you already pay |
+
+**Total new costs: ~$10/year.**
+
+---
+
+## Ongoing operations
+
+**When you push code changes to `main`:**
+- Cloudflare Pages sees the push, runs `npm run build` in the `frontend/` directory, and redeploys within 90 seconds.
+- GitHub Actions runs the CI to verify the frontend builds and backend tests pass.
+- No action needed from you.
+
+**When you add or edit a show through the public site:**
+- The request goes over Cloudflare Tunnel to your Mac's backend.
+- Backend writes to Apple Notes on your Mac.
+- Site refreshes and shows the new state.
+
+**When you upload a photo through the public site:**
+- File uploads to your Mac at `/Users/brent/Projects/Hobby/JennyConcertWebsite/data/concert-uploads/`.
+- The photo is served back over the tunnel when anyone views the show.
+- **These photos are not backed up automatically.** Add them to Time Machine or another backup. If your Mac dies, they're gone.
+
+**When you change the venue photo pack (running `npm run media:concerts`):**
+- Files land in `frontend/public/media/venues/` on your Mac.
+- Commit and push. Cloudflare Pages rebuilds and the new photos are live.
+
+---
+
+## Rotating the admin password
+
+Edit `backend/.env`, restart the backend service:
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.jenny.concerts-backend.plist
+launchctl load ~/Library/LaunchAgents/com.jenny.concerts-backend.plist
+```
+
+Then click **Editor** in the site's header (small dot in the top-right), sign out, sign back in with the new credential.
+
+---
+
+## Optional resilience (defer until you actually need it)
+
+**If your Mac being offline is painful:**
+
+- Add a small Cloudflare Worker or a static JSON cache that serves the last-known catalog when the tunnel is down. The site would render read-only in that state instead of throwing errors.
+- Migrate photo storage to Cloudflare R2 (10GB free) so photos survive if your Mac dies.
+- Long term: move the source of truth off Apple Notes into a proper database, then host the backend on Fly.io free tier ($0/month). This is a real refactor.
+
+None of these are needed for launch. Add them if the pain shows up.
+
+---
+
+## Troubleshooting quick reference
+
+| Symptom | Where to look |
+| --- | --- |
+| Site loads but every API call fails with CORS error | `ALLOWED_ORIGINS` in `backend/.env` missing the site's origin. Restart backend after fixing. |
+| Every mutation returns 401 | You aren't signed in. Click the Sign in button in the header. |
+| Every mutation returns 503 | Backend has no `ADMIN_USERNAME`/`ADMIN_PASSWORD` set. |
+| `cloudflared` errors on start | `cat ~/.cloudflared/config.yml`; verify the tunnel ID matches the credentials file. |
+| Pages build fails | Check the build log in the Cloudflare Pages dashboard. Usually a missing env var or a build script error. |
+| GitHub Actions CI fails | Click the failed job in the Actions tab; the failure is at the bottom of the log. Fix and push again. |
+| Photo uploads succeed but don't display | Check `data/concert-uploads/index.json` and the corresponding file exists on your Mac. Then check the backend serves `/api/concerts/uploads/{id}/file` correctly. |

@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --color-canvas: 247 244 239;
+  --color-surface: 255 253 249;
+  --color-surface-muted: 227 237 241;
+  --color-masthead: 211 232 240;
+  --color-header: 246 226 232;
+  --color-ink: 31 42 51;
+  --color-ink-muted: 82 96 106;
+  --color-border: 194 210 216;
+  --color-control-border: 107 124 132;
+  --color-primary: 49 92 112;
+  --color-primary-hover: 37 71 86;
+  --color-accent: 158 62 97;
+  --color-focus: 21 104 139;
+  --color-rating-favorite: 154 54 90;
+  --color-rating-love: 49 92 112;
+  --color-rating-like: 53 113 118;
+  --color-rating-disappointed: 98 105 106;
+  font-family: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  background: rgb(var(--color-canvas));
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: rgb(var(--color-canvas));
+  color: rgb(var(--color-ink));
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgb(var(--color-primary));
+  color: rgb(var(--color-surface));
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--color-focus));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgb(var(--color-surface));
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.focus-control:focus-within {
+  outline: 2px solid rgb(var(--color-focus));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgb(var(--color-surface));
+}
+
+.focus-control :focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.page-gutter {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+.dialog-content-gutter {
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
+}
+
+@media (min-width: 640px) {
+  .page-gutter {
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+}
+
+@media (min-width: 768px) {
+  .dialog-content-gutter {
+    padding-left: max(2.25rem, env(safe-area-inset-left));
+    padding-right: max(2.25rem, env(safe-area-inset-right));
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-gutter {
+    padding-left: max(2.5rem, env(safe-area-inset-left));
+    padding-right: max(2.5rem, env(safe-area-inset-right));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Leaflet integration: soften defaults so the map reads with our warm canvas palette. */
+.atlas-map-wrapper .leaflet-container {
+  font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+  background: rgb(var(--color-surface-muted));
+}
+.atlas-map-wrapper .leaflet-control-attribution {
+  background: rgba(255, 253, 249, 0.9);
+  color: rgb(var(--color-ink-muted));
+  font-size: 11px;
+  padding: 2px 8px;
+}
+.atlas-map-wrapper .leaflet-control-attribution a {
+  color: rgb(var(--color-ink));
+}
+.atlas-map-wrapper .leaflet-control-zoom a {
+  background: rgb(var(--color-surface));
+  color: rgb(var(--color-ink));
+  border-color: rgb(var(--color-border));
+}
+.atlas-map-wrapper .leaflet-control-zoom a:hover {
+  background: rgb(var(--color-surface-muted));
+}
+.atlas-map-wrapper .atlas-pin,
+.atlas-map-wrapper .atlas-cluster {
+  background: transparent;
+  border: 0;
+}

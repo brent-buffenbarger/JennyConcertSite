@@ -1,0 +1,19 @@
+{
+  "name": "jenny-concert-website-notes-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "notes:catalog:concerts": "node scripts/build-concerts-catalog.mjs",
+    "notes:export:concerts": "node scripts/export-concerts-notes.mjs",
+    "notes:concerts:read": "node scripts/read-concerts-note.mjs",
+    "notes:concerts:append": "node scripts/append-concerts-note.mjs",
+    "notes:concerts:remove": "node scripts/remove-from-concerts-note.mjs",
+    "notes:concerts:replace": "node scripts/replace-concerts-note.mjs",
+    "media:concerts": "node scripts/fetch-concert-media.mjs",
+    "notes:test:read": "node scripts/read-test-note.mjs",
+    "notes:test:append": "node scripts/append-test-note.mjs",
+    "notes:test:remove": "node scripts/remove-from-test-note.mjs",
+    "notes:test:replace": "node scripts/replace-test-note.mjs"
+  }
+}

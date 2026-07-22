@@ -1,0 +1,79 @@
+# Jenny Concerts API
+
+FastAPI backend for reading the Concerts Apple Note, building the website catalog, and optionally cleaning new or changed entries with OpenAI.
+
+## Setup
+
+From the project root:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -e "backend[dev]"
+cp backend/.env.example backend/.env
+```
+
+Add your API key to `backend/.env`:
+
+```dotenv
+OPENAI_API_KEY=your_api_key_here
+OPENAI_MODEL=gpt-5.6
+OPENAI_ENRICHMENT_ENABLED=true
+```
+
+`backend/.env` is ignored by Git. Never expose `OPENAI_API_KEY` to the frontend or commit it.
+
+## Run
+
+```bash
+uvicorn app.main:app --app-dir backend --reload
+```
+
+- Swagger UI: <http://127.0.0.1:8000/docs>
+- OpenAPI JSON: <http://127.0.0.1:8000/openapi.json>
+
+## Enrichment Behavior
+
+- `GET /api/concerts/catalog` only reads cached files and never calls OpenAI.
+- `POST /api/concerts/refresh` exports Notes, runs the deterministic parser, and checks hashes.
+- OpenAI receives one structured batch containing only new or changed entries.
+- Existing entry results are reused from `data/notes/concerts.enrichment.json`.
+- Cleaned output is written to `data/notes/concerts.enriched.json`.
+- The deterministic source remains at `data/notes/concerts.catalog.json`.
+- Raw source lines, statuses, and heart ratings are never replaced by the model.
+
+## Notes Mutations
+
+- `POST /api/concerts/note/entries` adds one entry to `wantToSee`, `haveSeen`, or `futureConcerts`.
+- `PATCH /api/concerts/note/entries` updates exactly one matching entry in its current section.
+- Both operations require the `modifiedAt` value returned with the catalog and reject stale writes with HTTP 409.
+- Successful writes rebuild the exported and parsed catalogs before returning.
+- Add/edit mutations always use the deterministic parser and never call OpenAI; enrichment is reserved for explicit syncs.
+- Apple Notes export/build failures are retried up to three times with a short backoff.
+- Refreshes resolve exact-match Deezer profile images for artists not already present in the live media manifest.
+- `GET /api/concerts/media` returns the live manifest so newly resolved images appear without a frontend rebuild.
+- `PUT /api/concerts/media/artist` stores a validated HTTP(S) image URL as the preferred image for one artist.
+- Deletion and whole-note replacement are intentionally not exposed by the API.
+
+OpenAI enrichment is optional at runtime. Authentication, quota, or service failures emit a backend warning and fall back to the deterministic parser, so a successful Notes write is never reported as failed solely because enrichment is unavailable.
+
+## Concert Uploads
+
+- `GET /api/concerts/uploads` browses website-only concert media and supports artist/date filters.
+- `POST /api/concerts/uploads` accepts multipart image/video uploads tagged with artist and date.
+- `GET /api/concerts/uploads/{id}/file` streams stored media inline.
+- Files and metadata live under `data/concert-uploads/` and are intentionally excluded from source control.
+- Supported formats are JPEG, PNG, GIF, WebP, AVIF, MP4, WebM, and QuickTime, up to 250 MB per file.
+
+If enrichment is intentionally disabled, set:
+
+```dotenv
+OPENAI_ENRICHMENT_ENABLED=false
+```
+
+## Tests
+
+```bash
+pytest backend/tests
+```
