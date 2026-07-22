@@ -316,7 +316,16 @@ Load it:
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.jenny.concerts-backend.plist
 ```
 
+Confirm it started:
+
+```bash
+launchctl list | grep jenny        # should print PID, exit code, label
+curl http://127.0.0.1:8000/health  # should print {"status":"ok"}
+```
+
 > **Note on `load` vs. `bootstrap`:** older docs (including some Apple ones) tell you to use `launchctl load`. That command still exists but is deprecated and produces cryptic errors on modern macOS. Use `bootstrap` / `bootout` / `kickstart` as shown throughout this doc.
+
+> **If `bootstrap` fails with `Bootstrap failed: 5: Input/output error`:** the most likely cause is that the job is *already loaded*. Check with `launchctl list | grep jenny` &mdash; if you see the label listed with a PID, the backend is already running and you don't need to do anything. To reload from scratch, run `launchctl bootout gui/$(id -u)/com.jenny.concerts-backend` first, then `bootstrap` again. Other possible causes: the plist has literal newlines inside a `<string>` value (see the copy-paste warning above), or the paths in `ProgramArguments` don't exist &mdash; verify with `test -x /Users/brent/Projects/Hobby/JennyConcertWebsite/.venv/bin/uvicorn`.
 
 ### 7b. Tunnel service
 
