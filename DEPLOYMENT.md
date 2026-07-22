@@ -308,11 +308,15 @@ Create `~/Library/LaunchAgents/com.jenny.concerts-backend.plist`:
 </plist>
 ```
 
+> **Copy-paste warning:** when you copy the XML above into a file, make sure the terminal or editor does not wrap long lines. If a `<string>` value ends up with a literal newline inside it (for example the path becomes `.venv/bin/\nuvicorn`), launchd will silently reject the job with `Load failed: 5: Input/output error` even though `plutil` will report the file as "OK". If you hit that error, open the file in a real editor and confirm each `<string>...</string>` is on a single line.
+
 Load it:
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.jenny.concerts-backend.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.jenny.concerts-backend.plist
 ```
+
+> **Note on `load` vs. `bootstrap`:** older docs (including some Apple ones) tell you to use `launchctl load`. That command still exists but is deprecated and produces cryptic errors on modern macOS. Use `bootstrap` / `bootout` / `kickstart` as shown throughout this doc.
 
 ### 7b. Tunnel service
 
@@ -407,14 +411,32 @@ If any step fails, check:
 
 ## Rotating the admin password
 
-Edit `backend/.env`, restart the backend service:
+Edit `backend/.env`, then restart the backend service. `kickstart -k` is the cleanest one-liner &mdash; it stops the current process and starts a fresh one that picks up the new env values:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.jenny.concerts-backend.plist
-launchctl load ~/Library/LaunchAgents/com.jenny.concerts-backend.plist
+launchctl kickstart -k gui/$(id -u)/com.jenny.concerts-backend
 ```
 
 Then click **Editor** in the site's header (small dot in the top-right), sign out, sign back in with the new credential.
+
+### Managing the launchd services (day-to-day reference)
+
+`$(id -u)` returns your user ID. Every command below assumes the plist at `~/Library/LaunchAgents/com.jenny.concerts-backend.plist`.
+
+| What you want to do | Command |
+| --- | --- |
+| Start the backend (and register it to auto-start on login) | `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.jenny.concerts-backend.plist` |
+| Stop and unregister | `launchctl bootout gui/$(id -u)/com.jenny.concerts-backend` |
+| Restart in place (after editing `.env` or the plist itself) | `launchctl kickstart -k gui/$(id -u)/com.jenny.concerts-backend` |
+| Confirm it's loaded | `launchctl list \| grep jenny` |
+| Detailed status (PID, exit codes, last error) | `launchctl print gui/$(id -u)/com.jenny.concerts-backend` |
+| Watch stdout live | `tail -f /tmp/jenny-backend.log` |
+| Watch stderr live | `tail -f /tmp/jenny-backend.err.log` |
+| Health check | `curl http://127.0.0.1:8000/health` |
+
+`launchctl list | grep jenny` output columns are **PID, exit status, label**. PID `-` means the job is registered but not currently running (usually because it just crashed &mdash; check the stderr log). A number means it's alive.
+
+If `launchctl print` reports `state = not running` or the PID keeps changing, the process is crash-looping. Check `/tmp/jenny-backend.err.log` for the traceback.
 
 ---
 
