@@ -84,26 +84,80 @@ If CI fails, fix it first before proceeding. A red CI means the code won't deplo
 
 ---
 
-## Part 4 &mdash; Deploy the frontend to Cloudflare Pages
+## Part 4 &mdash; Deploy the frontend to Cloudflare
 
-1. In the Cloudflare dashboard, go to **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
+Cloudflare has merged Pages into **Workers Builds**. The new flow expects a `wrangler.jsonc` config that tells Cloudflare how to publish your build output. The good news: **the config is already checked into this repo** at `wrangler.jsonc`, and it publishes `frontend/dist/` as a static-assets Worker with SPA routing support. So the setup is:
+
+1. Add the repo through the Workers Builds onboarding.
+2. Fill in the fields as described below.
+3. Save. Cloudflare builds and deploys automatically.
+
+You still get a free `*.workers.dev` (or `*.pages.dev` &mdash; naming varies) subdomain, the same free unlimited bandwidth, and the same automatic redeploys on push to `main`.
+
+### 4a. Connect the repo
+
+1. In the Cloudflare dashboard, go to **Workers & Pages** → **Create** → **Import a repository**.
 2. Authorize Cloudflare to access your GitHub account. Grant access to the `JennyConcertSite` repo only (don't grant your whole account).
-3. Select the repo. Give the Pages project a name &mdash; this becomes the `*.pages.dev` subdomain, so pick something you're OK seeing publicly. `jenny-concerts` for example gives you `jenny-concerts.pages.dev`.
-4. Framework preset: **Vite** (Cloudflare will detect it).
-5. Set the build settings:
-   - **Root directory:** `frontend`
-   - **Build command:** `npm run build`
-   - **Build output directory:** `dist`
-6. Click **Environment variables** and add:
-   - `VITE_API_BASE_URL` = `https://api.jennyconcerts.com` (or whatever hostname you're going to use for the backend &mdash; you'll set the DNS for this in Part 5)
-7. Click **Save and Deploy**.
+3. Select the repo. Cloudflare kicks you into the build configuration screen.
+
+### 4b. Fill in the fields exactly like this
+
+| Field on the screen | What to enter | Notes |
+| --- | --- | --- |
+| **Project name** | `jenny-concerts` (or anything) | Becomes your free `*.workers.dev` subdomain. Lowercase, no spaces. Must match the `name` field in `wrangler.jsonc` &mdash; if you change one, change both. |
+| **Production branch** | `main` | Should already be pre-filled. |
+| **Build command** | `cd frontend && npm ci && npm run build` | The `cd frontend` matters because our repo has the SPA in a subdirectory. |
+| **Deploy command** | `npx wrangler deploy` | This is what publishes the Worker. It reads `wrangler.jsonc` at the repo root and uploads `frontend/dist/`. |
+| **Builds for non-production branches** | *checked* (default) | So preview deploys build automatically when you push to any non-main branch. Fine to leave on. |
+
+### 4c. Advanced settings
+
+Expand the **Advanced settings** dropdown:
+
+| Field | Value |
+| --- | --- |
+| **Non-production branch deploy command** | `npx wrangler versions upload` | Publishes a preview version instead of promoting to production. This is the recommended default; you can leave it as whatever Cloudflare pre-fills. |
+| **Path** | *leave empty* | Not used when `wrangler.jsonc` is present; the assets directory is set inside the config file. |
+| **API token** | click **Create new token** | Cloudflare generates one automatically with the permissions Wrangler needs. |
+| **API token name** | auto-fills after creating the token | No action required. |
+
+### 4d. Environment variables
+
+Still in Advanced settings, find the **Variables and secrets** section and add one variable:
+
+| Variable name | Variable value | Type |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | `https://api.jennyconcerts.com` | plaintext |
+
+Replace `api.jennyconcerts.com` with `api.<your-domain>` &mdash; whatever hostname you plan to use for the backend tunnel. You'll wire the DNS for this in Part 5, so it's fine if the hostname doesn't resolve yet; the frontend just needs to know where to send requests once it's live.
+
+The type **must** be `plaintext`, not `secret`. Vite reads env vars at build time; Cloudflare only exposes plaintext variables to the build.
+
+### 4e. Save and deploy
+
+Click **Save and Deploy** at the bottom.
 
 Cloudflare will:
-- Clone the repo, run `npm ci`, run `npm run build`, upload the `dist/` folder.
-- Assign you a `https://jenny-concerts.pages.dev` URL.
-- Watch for pushes to `main` and redeploy automatically. This is your CD.
+1. Clone the repo.
+2. Run `cd frontend && npm ci && npm run build`. This produces `frontend/dist/`.
+3. Run `npx wrangler deploy`. Wrangler reads `wrangler.jsonc` at the repo root, finds `assets.directory = "./frontend/dist"`, and uploads those files as a Worker with static-asset handling.
+4. Assign your project a `https://jenny-concerts.<something>.workers.dev` URL (or a Pages-style URL &mdash; Cloudflare is in the middle of unifying these).
+5. Watch for pushes to `main` and redeploy automatically. This is your CD.
 
-The first build takes ~2 minutes. Open the Pages URL when it finishes. **The site will load but any interaction will fail** because the backend isn't reachable yet. That's expected. On to Part 5.
+The first build takes ~2 minutes. Watch the deploy log in real time from the project's **Deployments** tab &mdash; that's also where you go to debug if the build fails.
+
+### 4f. Confirm the deploy landed
+
+Open the URL when the build finishes. **The site will load but every interaction will fail** because the backend isn't reachable yet. That's expected. On to Part 5.
+
+### Troubleshooting Part 4
+
+- **Build fails with "package.json not found":** the Build command isn't `cd`-ing into `frontend/` first. Fix it to `cd frontend && npm ci && npm run build`.
+- **Deploy fails with "wrangler.jsonc not found":** the config file isn't at the repo root. Confirm `git ls-files | grep wrangler` shows `wrangler.jsonc` at the top level.
+- **Deploy fails with "assets directory ./frontend/dist not found":** the build ran but produced output somewhere else. Check the build log for where Vite says it wrote files, then update `wrangler.jsonc`'s `assets.directory`.
+- **Site loads but every route except `/` returns 404:** the `not_found_handling` in `wrangler.jsonc` isn't set. Confirm the config file has `"not_found_handling": "single-page-application"`. Push a fix and Cloudflare will redeploy.
+- **Environment variable not applied:** confirm the variable is set as **plaintext**, not secret, and that it's set on the **Production** environment (or on both if you also want it in previews). Trigger a redeploy from the Deployments tab; Vite reads env vars only at build time, so changing the variable requires a fresh build.
+- **CORS errors in browser devtools after Part 6:** the API URL in `VITE_API_BASE_URL` doesn't match what's in the backend's `ALLOWED_ORIGINS`, OR the site's origin isn't in `ALLOWED_ORIGINS`. Fix both sides.
 
 ---
 
