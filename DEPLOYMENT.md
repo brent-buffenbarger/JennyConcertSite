@@ -285,6 +285,11 @@ Create `~/Library/LaunchAgents/com.jenny.concerts-backend.plist`:
   <string>com.jenny.concerts-backend</string>
   <key>WorkingDirectory</key>
   <string>/Users/brent/Projects/Hobby/JennyConcertWebsite</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
   <key>ProgramArguments</key>
   <array>
     <string>/Users/brent/Projects/Hobby/JennyConcertWebsite/.venv/bin/uvicorn</string>
@@ -307,6 +312,8 @@ Create `~/Library/LaunchAgents/com.jenny.concerts-backend.plist`:
 </dict>
 </plist>
 ```
+
+> **Why `EnvironmentVariables.PATH` matters:** the backend shells out to `node` (installed by Homebrew at `/opt/homebrew/bin/node` on Apple Silicon, `/usr/local/bin/node` on Intel Macs) to run the Apple Notes integration scripts. Launchd jobs get a minimal default `PATH` of `/usr/bin:/bin:/usr/sbin:/sbin` that does not include Homebrew, so without this override, every write endpoint fails with `Node.js is required to execute the Notes integration scripts`. If your `node` lives somewhere else (`asdf`, `nvm`, `mise`, etc.), point the `PATH` at that install's `bin` directory instead.
 
 > **Copy-paste warning:** when you copy the XML above into a file, make sure the terminal or editor does not wrap long lines. If a `<string>` value ends up with a literal newline inside it (for example the path becomes `.venv/bin/\nuvicorn`), launchd will silently reject the job with `Load failed: 5: Input/output error` even though `plutil` will report the file as "OK". If you hit that error, open the file in a real editor and confirm each `<string>...</string>` is on a single line.
 
