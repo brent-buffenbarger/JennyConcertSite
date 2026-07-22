@@ -1,0 +1,304 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-22T06:17:07.292446Z",
+  "venues": [
+    {
+      "key": "east end studios",
+      "names": [
+        "East End Studios"
+      ],
+      "name": "East End Studios",
+      "city": "Glendale, CA",
+      "neighborhood": "Glendale",
+      "venueType": "studio",
+      "lat": 34.1467,
+      "lng": -118.2549,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "echoplex",
+      "names": [
+        "Echoplex"
+      ],
+      "name": "Echoplex",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Echo Park",
+      "venueType": "club",
+      "lat": 34.0777,
+      "lng": -118.2603,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "gallivan center",
+      "names": [
+        "Gallivan Center"
+      ],
+      "name": "Gallivan Center",
+      "city": "Salt Lake City, UT",
+      "neighborhood": "Downtown",
+      "venueType": "plaza",
+      "lat": 40.7635,
+      "lng": -111.8899,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "greek theatre",
+      "names": [
+        "Greek Theatre"
+      ],
+      "name": "Greek Theatre",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Griffith Park",
+      "venueType": "amphitheatre",
+      "lat": 34.1197,
+      "lng": -118.2917,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "hollywood bowl",
+      "names": [
+        "Hollywood Bowl"
+      ],
+      "name": "Hollywood Bowl",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Hollywood Hills",
+      "venueType": "amphitheatre",
+      "lat": 34.1122,
+      "lng": -118.3394,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "hollywood casino amphitheatre",
+      "names": [
+        "Hollywood Casino Amphitheatre"
+      ],
+      "name": "Hollywood Casino Amphitheatre",
+      "city": "Maryland Heights, MO",
+      "neighborhood": "St. Louis suburbs",
+      "venueType": "amphitheatre",
+      "lat": 38.7086,
+      "lng": -90.4881,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "hollywood forever cemetery",
+      "names": [
+        "Hollywood Forever Cemetery"
+      ],
+      "name": "Hollywood Forever Cemetery",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Hollywood",
+      "venueType": "cemetery",
+      "lat": 34.0895,
+      "lng": -118.3196,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "hollywood palladium",
+      "names": [
+        "Hollywood Palladium"
+      ],
+      "name": "Hollywood Palladium",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Hollywood",
+      "venueType": "ballroom",
+      "lat": 34.0982,
+      "lng": -118.3252,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "kia forum",
+      "names": [
+        "Kia Forum",
+        "Kia"
+      ],
+      "name": "Kia Forum",
+      "city": "Inglewood, CA",
+      "neighborhood": "Inglewood",
+      "venueType": "arena",
+      "lat": 33.9583,
+      "lng": -118.3417,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "pacific amphitheatre",
+      "names": [
+        "Pacific Amphitheatre"
+      ],
+      "name": "Pacific Amphitheatre",
+      "city": "Costa Mesa, CA",
+      "neighborhood": "OC Fairgrounds",
+      "venueType": "amphitheatre",
+      "lat": 33.6787,
+      "lng": -117.9161,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "permanent records roadhouse",
+      "names": [
+        "Permanent Records Roadhouse"
+      ],
+      "name": "Permanent Records Roadhouse",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Cypress Park",
+      "venueType": "club",
+      "lat": 34.0906,
+      "lng": -118.2222,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "sofi stadium",
+      "names": [
+        "SoFi Stadium",
+        "SOFI Stadium"
+      ],
+      "name": "SoFi Stadium",
+      "city": "Inglewood, CA",
+      "neighborhood": "Inglewood",
+      "venueType": "stadium",
+      "lat": 33.9535,
+      "lng": -118.3392,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "tao beach dayclub",
+      "names": [
+        "TAO Beach Dayclub"
+      ],
+      "name": "TAO Beach Dayclub",
+      "city": "Las Vegas, NV",
+      "neighborhood": "The Strip",
+      "venueType": "dayclub",
+      "lat": 36.1214,
+      "lng": -115.1745,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "the belasco",
+      "names": [
+        "The Belasco"
+      ],
+      "name": "The Belasco",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Downtown",
+      "venueType": "theater",
+      "lat": 34.0439,
+      "lng": -118.2597,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "the fonda",
+      "names": [
+        "The Fonda",
+        "The Fonda Theatre"
+      ],
+      "name": "The Fonda Theatre",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Hollywood",
+      "venueType": "theater",
+      "lat": 34.1017,
+      "lng": -118.3264,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "the novo",
+      "names": [
+        "The Novo"
+      ],
+      "name": "The Novo",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Downtown",
+      "venueType": "theater",
+      "lat": 34.0453,
+      "lng": -118.2669,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "the regent theater",
+      "names": [
+        "The Regent Theater"
+      ],
+      "name": "The Regent Theater",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Downtown",
+      "venueType": "theater",
+      "lat": 34.0459,
+      "lng": -118.2483,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "the roxy",
+      "names": [
+        "The Roxy",
+        "The Roxy Theatre"
+      ],
+      "name": "The Roxy Theatre",
+      "city": "West Hollywood, CA",
+      "neighborhood": "Sunset Strip",
+      "venueType": "club",
+      "lat": 34.0906,
+      "lng": -118.3856,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "usana amphitheatre",
+      "names": [
+        "USANA Amphitheatre"
+      ],
+      "name": "USANA Amphitheatre",
+      "city": "West Valley City, UT",
+      "neighborhood": "West Valley",
+      "venueType": "amphitheatre",
+      "lat": 40.6836,
+      "lng": -112.0356,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "venice west",
+      "names": [
+        "Venice West"
+      ],
+      "name": "Venice West",
+      "city": "Venice, CA",
+      "neighborhood": "Venice Beach",
+      "venueType": "club",
+      "lat": 33.9903,
+      "lng": -118.4644,
+      "verified": true,
+      "source": "curated"
+    },
+    {
+      "key": "youtube theater",
+      "names": [
+        "YouTube Theater"
+      ],
+      "name": "YouTube Theater",
+      "city": "Inglewood, CA",
+      "neighborhood": "Inglewood",
+      "venueType": "theater",
+      "lat": 33.9527,
+      "lng": -118.3392,
+      "verified": true,
+      "source": "curated"
+    }
+  ]
+}

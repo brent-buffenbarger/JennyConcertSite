@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-21T06:27:18.469Z",
+  "generatedAt": "2026-07-22T06:10:35.666Z",
   "artists": [
     {
       "key": "post-malone",
@@ -1204,6 +1204,50 @@
       "modifications": "Displayed remotely and cropped for card display",
       "provider": "Deezer",
       "providerId": 4400138,
+      "rightsClass": "provider-promotional"
+    },
+    {
+      "key": "sarah-and-the-sundays",
+      "names": [
+        "Sarah and the Sundays"
+      ],
+      "title": "Sarah and the Sundays artist profile image",
+      "imageUrl": "https://cdn-images.dzcdn.net/images/artist/12ce8995e981a6c987a73d3a2049f57b/1000x1000-000000-80-0-0.jpg",
+      "width": 1000,
+      "height": 1000,
+      "sourceUrl": "https://www.deezer.com/artist/14221559",
+      "originalUrl": "https://cdn-images.dzcdn.net/images/artist/12ce8995e981a6c987a73d3a2049f57b/1000x1000-000000-80-0-0.jpg",
+      "sourceSha1": null,
+      "localSha256": null,
+      "creator": "Sarah and the Sundays",
+      "licenseName": "Image via Deezer",
+      "licenseUrl": "https://developers.deezer.com/termsofuse",
+      "creditText": "Sarah and the Sundays artist profile / Deezer",
+      "modifications": "Displayed remotely and cropped for card display",
+      "provider": "Deezer",
+      "providerId": 14221559,
+      "rightsClass": "provider-promotional"
+    },
+    {
+      "key": "queen",
+      "names": [
+        "Queen"
+      ],
+      "title": "Queen artist profile image",
+      "imageUrl": "https://cdn-images.dzcdn.net/images/artist/71eeb9e2eeb375df35a3c0654a5a01ab/1000x1000-000000-80-0-0.jpg",
+      "width": 1000,
+      "height": 1000,
+      "sourceUrl": "https://www.deezer.com/artist/412",
+      "originalUrl": "https://cdn-images.dzcdn.net/images/artist/71eeb9e2eeb375df35a3c0654a5a01ab/1000x1000-000000-80-0-0.jpg",
+      "sourceSha1": null,
+      "localSha256": null,
+      "creator": "Queen",
+      "licenseName": "Image via Deezer",
+      "licenseUrl": "https://developers.deezer.com/termsofuse",
+      "creditText": "Queen artist profile / Deezer",
+      "modifications": "Displayed remotely and cropped for card display",
+      "provider": "Deezer",
+      "providerId": 412,
       "rightsClass": "provider-promotional"
     }
   ],

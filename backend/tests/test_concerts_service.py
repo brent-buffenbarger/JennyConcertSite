@@ -209,6 +209,115 @@ def test_delete_upload_removes_metadata_and_file(tmp_path: Path) -> None:
     assert list(service.upload_root.glob(f"{uploaded['id']}.*")) == []
 
 
+def test_ensure_venue_details_geocodes_new_venues_and_caches_result(tmp_path: Path, monkeypatch) -> None:
+    """When refresh runs, any venue in the catalog that isn't in venue-details.json gets geocoded once."""
+    service = StubConcertsService(tmp_path)
+    write_json(tmp_path / "data/notes/concerts.catalog.json", {
+        "schemaVersion": 2,
+        "source": {},
+        "rawExport": {},
+        "parsedCatalog": {
+            "haveSeen": [
+                {"artist": "Some Artist", "parsed": {"venue": "The Troubadour"}},
+                {"artist": "Other Artist", "parsed": {"venue": "The Troubadour"}},  # duplicate: geocode once
+                {"artist": "Third Artist", "parsed": {"venue": "The Bellwether"}},
+            ],
+            "wantToSee": [],
+            "futureConcerts": [],
+        },
+    })
+
+    calls: list[str] = []
+
+    def fake_geocode(name, city_hint=None):
+        calls.append(name)
+        if name == "The Troubadour":
+            return {"name": name, "city": "West Hollywood, CA", "neighborhood": "Santa Monica Blvd", "venueType": "club", "lat": 34.0812, "lng": -118.3854, "verified": False, "source": "nominatim"}
+        if name == "The Bellwether":
+            return {"name": name, "city": "Los Angeles, CA", "neighborhood": "Downtown", "venueType": "theater", "lat": 34.0451, "lng": -118.2617, "verified": False, "source": "nominatim"}
+        return None
+
+    monkeypatch.setattr("app.services.concerts.geocode_venue", fake_geocode)
+
+    service.refresh_catalog()
+
+    assert sorted(calls) == ["The Bellwether", "The Troubadour"]  # duplicates deduped
+    saved = json.loads(service.venue_details_path.read_text(encoding="utf-8"))
+    keys = [record["key"] for record in saved["venues"]]
+    assert "the troubadour" in keys
+    assert "the bellwether" in keys
+    troubadour = next(record for record in saved["venues"] if record["key"] == "the troubadour")
+    assert troubadour["verified"] is False
+    assert troubadour["source"] == "nominatim"
+    assert troubadour["lat"] == pytest.approx(34.0812)
+
+
+def test_ensure_venue_details_skips_venues_already_known(tmp_path: Path, monkeypatch) -> None:
+    service = StubConcertsService(tmp_path)
+    write_json(tmp_path / "data/notes/concerts.catalog.json", {
+        "schemaVersion": 2,
+        "source": {},
+        "rawExport": {},
+        "parsedCatalog": {"haveSeen": [{"artist": "A", "parsed": {"venue": "The Fonda Theatre"}}], "wantToSee": [], "futureConcerts": []},
+    })
+    write_json(service.venue_details_path, {
+        "schemaVersion": 1,
+        "venues": [
+            {"key": "the fonda theatre", "names": ["The Fonda Theatre", "The Fonda"], "name": "The Fonda Theatre", "verified": True, "source": "curated"},
+        ],
+    })
+
+    def fail_geocode(*args, **kwargs):
+        raise AssertionError("geocode_venue should not be called for known venues")
+
+    monkeypatch.setattr("app.services.concerts.geocode_venue", fail_geocode)
+
+    service.refresh_catalog()
+
+
+def test_ensure_venue_details_records_unresolved_stub_when_geocoder_returns_none(tmp_path: Path, monkeypatch) -> None:
+    """A venue with no geocoder hit should still be recorded so we don't retry it forever."""
+    service = StubConcertsService(tmp_path)
+    write_json(tmp_path / "data/notes/concerts.catalog.json", {
+        "schemaVersion": 2,
+        "source": {},
+        "rawExport": {},
+        "parsedCatalog": {"haveSeen": [{"artist": "A", "parsed": {"venue": "Utterly Obscure Venue"}}], "wantToSee": [], "futureConcerts": []},
+    })
+
+    monkeypatch.setattr("app.services.concerts.geocode_venue", lambda *args, **kwargs: None)
+
+    service.refresh_catalog()
+
+    saved = json.loads(service.venue_details_path.read_text(encoding="utf-8"))
+    record = next(r for r in saved["venues"] if r["key"] == "utterly obscure venue")
+    assert record["source"] == "unresolved"
+    assert record["lat"] is None
+
+
+def test_get_media_manifest_includes_venue_details(tmp_path: Path) -> None:
+    service = ConcertsService(tmp_path)
+    write_json(service.media_manifest_path, {"schemaVersion": 2, "artists": [], "venues": []})
+    write_json(service.venue_details_path, {
+        "schemaVersion": 1,
+        "venues": [{"key": "the fonda theatre", "name": "The Fonda Theatre", "lat": 34.1, "lng": -118.3}],
+    })
+
+    manifest = service.get_media_manifest()
+
+    assert "venueDetails" in manifest
+    assert manifest["venueDetails"][0]["name"] == "The Fonda Theatre"
+
+
+def test_get_media_manifest_gracefully_handles_missing_venue_details(tmp_path: Path) -> None:
+    service = ConcertsService(tmp_path)
+    write_json(service.media_manifest_path, {"schemaVersion": 2, "artists": [], "venues": []})
+
+    manifest = service.get_media_manifest()
+
+    assert manifest["venueDetails"] == []
+
+
 def test_get_catalog_rejects_enriched_output_with_a_stale_source_hash(tmp_path: Path) -> None:
     service = ConcertsService(tmp_path)
     base = {

@@ -71,10 +71,25 @@ function buildMediaIndex(records) {
   return new Map(records.flatMap((record) => record.names.map((name) => [normalizeLookupKey(name), record])))
 }
 
+function buildVenueDetailsIndex(records) {
+  const index = new Map()
+  for (const record of records || []) {
+    const aliases = record.names && record.names.length ? record.names : (record.name ? [record.name] : [])
+    for (const alias of aliases) {
+      const key = normalizeLookupKey(alias)
+      if (key) index.set(key, record)
+    }
+  }
+  return index
+}
+
 function buildMediaIndexes(manifest) {
   return {
     artistMediaByName: buildMediaIndex(manifest.artists || []),
     venueMediaByName: buildMediaIndex(manifest.venues || []),
+    // Prefer whatever venueDetails the manifest carries (backend-generated).
+    // Falls back to an empty map when the field is absent (older manifest, offline dev).
+    venueDetailsByName: buildVenueDetailsIndex(manifest.venueDetails || []),
   }
 }
 
@@ -266,13 +281,48 @@ export function createConcertEnricher(manifest = mediaManifest) {
   return (entry) => enrichConcertEntry(entry, indexes)
 }
 
+function resolveVenue(rawVenue, venueDetailsByName) {
+  if (!rawVenue) return null
+  const key = normalizeLookupKey(rawVenue)
+  // 1. Live manifest venue details (backend-generated, includes auto-geocoded venues).
+  const fromManifest = venueDetailsByName?.get(key)
+  if (fromManifest) {
+    return {
+      name: fromManifest.name || rawVenue,
+      city: fromManifest.city ?? null,
+      neighborhood: fromManifest.neighborhood ?? null,
+      venueType: fromManifest.venueType ?? null,
+      lat: typeof fromManifest.lat === 'number' ? fromManifest.lat : null,
+      lng: typeof fromManifest.lng === 'number' ? fromManifest.lng : null,
+      verified: fromManifest.verified !== false,
+      source: fromManifest.source || 'curated',
+    }
+  }
+  // 2. Hardcoded venue map (the original seed). Treated as verified.
+  const fromHardcoded = venueDetails[key]
+  if (fromHardcoded) {
+    return {
+      name: fromHardcoded.name,
+      city: fromHardcoded.city ?? null,
+      neighborhood: fromHardcoded.neighborhood ?? null,
+      venueType: fromHardcoded.venueType ?? null,
+      lat: typeof fromHardcoded.lat === 'number' ? fromHardcoded.lat : null,
+      lng: typeof fromHardcoded.lng === 'number' ? fromHardcoded.lng : null,
+      verified: true,
+      source: 'curated',
+    }
+  }
+  // 3. Fallback: nothing known. Return the raw name so at least it's displayed.
+  return { name: rawVenue, city: null, neighborhood: null, venueType: null, lat: null, lng: null, verified: false, source: null }
+}
+
 export function enrichConcertEntry(entry, mediaIndexes = defaultMediaIndexes) {
-  const { artistMediaByName, venueMediaByName } = mediaIndexes
+  const { artistMediaByName, venueMediaByName, venueDetailsByName } = mediaIndexes
   const sourceArtist = entry.artist
   const artist = artistDisplayNames[normalizeLookupKey(sourceArtist)] || sourceArtist
   const artistMedia = artistMediaByName.get(normalizeLookupKey(artist)) || artistMediaByName.get(normalizeLookupKey(sourceArtist)) || null
   const rawVenue = entry.parsed?.venue || entry.locationText || null
-  const venue = venueDetails[normalizeLookupKey(rawVenue)] || (rawVenue ? { name: rawVenue, city: null } : null)
+  const venue = resolveVenue(rawVenue, venueDetailsByName)
   const venueMedia = venue
     ? venueMediaByName.get(normalizeLookupKey(venue.name)) || venueMediaByName.get(normalizeLookupKey(rawVenue)) || null
     : null
@@ -301,6 +351,8 @@ export function enrichConcertEntry(entry, mediaIndexes = defaultMediaIndexes) {
     venueTypeLabel: venue?.venueType ? venueTypeLabels[venue.venueType] || null : null,
     venueLat: typeof venue?.lat === 'number' ? venue.lat : null,
     venueLng: typeof venue?.lng === 'number' ? venue.lng : null,
+    venueVerified: venue?.verified !== false,
+    venueSource: venue?.source || null,
     venueAddress: null,
     venueMedia,
     venueMark: venue?.name ? buildVenueMarkDataUrl(venue.name, venue.city, venue.venueType) : null,

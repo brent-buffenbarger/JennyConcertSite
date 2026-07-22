@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from .catalog_enrichment import CatalogEnricher, CatalogEnrichmentError
+from .venue_geocoding import VenueGeocodingError, geocode_venue, normalize_venue_key
 
 
 class ConcertsServiceError(RuntimeError):
@@ -75,6 +76,10 @@ class ConcertsService:
         return self.project_root / "frontend" / "src" / "data" / "concert-media.json"
 
     @property
+    def venue_details_path(self) -> Path:
+        return self.project_root / "frontend" / "src" / "data" / "venue-details.json"
+
+    @property
     def upload_root(self) -> Path:
         return self.project_root / "data" / "concert-uploads"
 
@@ -106,7 +111,20 @@ class ConcertsService:
         return self._read_json(self.raw_export_path)
 
     def get_media_manifest(self) -> Dict[str, Any]:
-        return self._read_json(self.media_manifest_path)
+        manifest = self._read_json(self.media_manifest_path)
+        # Attach venue-details so the frontend has one place to pull dynamic venue data.
+        try:
+            venue_details = self._read_json(self.venue_details_path)
+        except ConcertsServiceError:
+            venue_details = {"schemaVersion": 1, "venues": []}
+        manifest["venueDetails"] = venue_details.get("venues", [])
+        return manifest
+
+    def get_venue_details(self) -> Dict[str, Any]:
+        try:
+            return self._read_json(self.venue_details_path)
+        except ConcertsServiceError:
+            return {"schemaVersion": 1, "generatedAt": None, "venues": []}
 
     def set_artist_image(self, artist: str, image_url: str) -> Dict[str, Any]:
         manifest = self.get_media_manifest()
@@ -262,6 +280,7 @@ class ConcertsService:
                 warnings.warn(f"OpenAI enrichment skipped: {exc}", RuntimeWarning)
                 catalog = base
         self._ensure_artist_media(catalog)
+        self._ensure_venue_details(catalog)
         return catalog
 
     def _refresh_base_catalog(self) -> Dict[str, Any]:
@@ -309,6 +328,92 @@ class ConcertsService:
         }, ensure_ascii=False)
         self._run_node_script("scripts/mutate-concert-entry.mjs", payload)
         return self.refresh_catalog(enrich=False)
+
+    def _ensure_venue_details(self, catalog: Dict[str, Any]) -> None:
+        """Geocode any venues in the catalog that aren't yet in venue-details.json.
+
+        Nominatim is best-effort: if it fails or returns no useful hit, we skip
+        that venue silently. Notes writes remain successful.
+        """
+        details_payload = self.get_venue_details()
+        records: list[Dict[str, Any]] = list(details_payload.get("venues", []))
+        # Build a fast lookup by normalized key (respecting all name aliases).
+        known_keys: set[str] = set()
+        for record in records:
+            for alias in record.get("names") or ([record.get("name")] if record.get("name") else []):
+                key = normalize_venue_key(alias or "")
+                if key:
+                    known_keys.add(key)
+
+        # Collect (name, city_hint) tuples for venues not yet known.
+        seen_in_this_pass: set[str] = set()
+        pending: list[tuple[str, Optional[str]]] = []
+        for section in catalog.get("parsedCatalog", {}).values():
+            for entry in section:
+                raw_venue = (entry.get("parsed") or {}).get("venue") or entry.get("locationText")
+                if not raw_venue:
+                    continue
+                key = normalize_venue_key(raw_venue)
+                if not key or key in known_keys or key in seen_in_this_pass:
+                    continue
+                seen_in_this_pass.add(key)
+                city_hint = (entry.get("parsed") or {}).get("locationText") or entry.get("locationText")
+                pending.append((raw_venue, city_hint if city_hint and city_hint != raw_venue else None))
+
+        if not pending:
+            return
+
+        added: list[Dict[str, Any]] = []
+        for raw_venue, city_hint in pending:
+            try:
+                result = geocode_venue(raw_venue, city_hint)
+            except VenueGeocodingError as exc:
+                warnings.warn(f"Venue geocoding skipped for {raw_venue!r}: {exc}", RuntimeWarning)
+                continue
+            if result is None:
+                # Nothing plausible found. Record a stub so we don't retry every write.
+                record = {
+                    "key": normalize_venue_key(raw_venue),
+                    "names": [raw_venue],
+                    "name": raw_venue,
+                    "city": city_hint,
+                    "neighborhood": None,
+                    "venueType": None,
+                    "lat": None,
+                    "lng": None,
+                    "verified": False,
+                    "source": "unresolved",
+                }
+            else:
+                record = {
+                    "key": normalize_venue_key(raw_venue),
+                    "names": [raw_venue],
+                    **result,
+                }
+            added.append(record)
+
+        if not added:
+            return
+
+        records.extend(added)
+        payload = {
+            "schemaVersion": details_payload.get("schemaVersion", 1),
+            "generatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "venues": records,
+        }
+        self.venue_details_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = self.venue_details_path.with_name(
+            f"{self.venue_details_path.name}.tmp-{os.getpid()}"
+        )
+        try:
+            temporary_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            temporary_path.replace(self.venue_details_path)
+        except OSError as exc:
+            temporary_path.unlink(missing_ok=True)
+            warnings.warn(f"Failed to save venue-details.json: {exc}", RuntimeWarning)
 
     def _ensure_artist_media(self, catalog: Dict[str, Any]) -> None:
         artists = [

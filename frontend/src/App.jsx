@@ -903,14 +903,20 @@ const atlasRegions = [
 ]
 
 // Deterministic pin icons rendered as HTML for L.divIcon.
-function buildVenuePinIcon(isSelected) {
-  const fill = isSelected ? '#9e3e61' : '#1f2a33'
+// Unverified pins (auto-geocoded, not yet reviewed) render with a hollow
+// dashed halo so it's obvious the location may not be exact.
+function buildVenuePinIcon(isSelected, verified = true) {
+  const fill = isSelected ? '#9e3e61' : verified ? '#1f2a33' : '#52606a'
   const ring = '#fffdf9'
+  const size = verified ? 14 : 12
+  const halo = verified
+    ? ''
+    : '<span style="position:absolute;top:-7px;left:-7px;width:24px;height:24px;border-radius:9999px;border:1.5px dashed rgba(158,62,97,0.7);pointer-events:none"></span>'
   return L.divIcon({
     className: 'atlas-pin',
-    html: `<span style="display:block;width:14px;height:14px;border-radius:9999px;background:${fill};box-shadow:0 0 0 2px ${ring},0 1px 3px rgba(0,0,0,0.25)"></span>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+    html: `<span style="position:relative;display:block;width:${size}px;height:${size}px;border-radius:9999px;background:${fill};box-shadow:0 0 0 2px ${ring},0 1px 3px rgba(0,0,0,0.25)">${halo}</span>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -12],
   })
 }
@@ -940,6 +946,8 @@ function buildAtlasVenues(collections) {
       typeLabel: entry.venueTypeLabel,
       lat: entry.venueLat,
       lng: entry.venueLng,
+      verified: entry.venueVerified !== false,
+      source: entry.venueSource || null,
       media: entry.venueMedia,
       mark: entry.venueMark,
       mapUrl: entry.venueMapUrl,
@@ -984,6 +992,12 @@ function AtlasVenuePanel({ venue, onOpenEntry }) {
           </p>
         ) : null}
         {venue.city ? <p className="mt-1 text-sm text-ink-muted">{venue.city}</p> : null}
+        {venue.verified === false ? (
+          <p className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-dashed border-accent/60 bg-canvas px-2.5 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-accent">
+            <span aria-hidden="true">&#9888;</span>
+            Location unverified
+          </p>
+        ) : null}
 
         <p className="mt-5 text-xs font-semibold uppercase tracking-[0.14em] text-ink-muted">{venue.shows.length} {venue.shows.length === 1 ? 'show' : 'shows'} logged</p>
         <ul className="mt-3 divide-y divide-border border-y border-border">
@@ -1087,7 +1101,7 @@ function AtlasPage({ collections, onOpenEntry }) {
                   <Marker
                     key={venue.id}
                     position={[venue.lat, venue.lng]}
-                    icon={buildVenuePinIcon(venue.id === selectedVenueId)}
+                    icon={buildVenuePinIcon(venue.id === selectedVenueId, venue.verified !== false)}
                     eventHandlers={{
                       click: () => setSelectedVenueId(venue.id),
                     }}
