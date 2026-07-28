@@ -83,9 +83,9 @@ def test_openapi_docs_exist() -> None:
     payload = response.json()
     assert payload["info"]["title"] == "Jenny Concerts API"
     assert "/api/concerts/catalog" in payload["paths"]
+    assert "/api/concerts/refresh" in payload["paths"]
     assert "/api/concerts/source" not in payload["paths"]
     assert "/api/concerts/note/entries" not in payload["paths"]
-    assert "/api/concerts/refresh" not in payload["paths"]
     assert "/api/concerts/uploads/{media_id}" not in payload["paths"]
 
 
@@ -161,6 +161,13 @@ def test_delete_concert_media_route_is_not_exposed() -> None:
     assert response.status_code == 404
 
 
+def test_refresh_route_is_public_and_returns_catalog() -> None:
+    client = TestClient(create_app(FakeConcertsService()))
+    response = client.post("/api/concerts/refresh")
+    assert response.status_code == 200
+    assert response.json()["source"]["title"] == "Concerts"
+
+
 def test_get_endpoints_do_not_require_auth() -> None:
     client = TestClient(create_app(FakeConcertsService()))
     assert client.get("/api/concerts/catalog").status_code == 200
@@ -188,6 +195,5 @@ def test_notes_mutation_routes_are_not_exposed() -> None:
     client = TestClient(create_app(FakeConcertsService()))
     assert client.post("/api/concerts/note/entries", json={}).status_code == 404
     assert client.patch("/api/concerts/note/entries", json={}).status_code == 404
-    assert client.post("/api/concerts/refresh").status_code == 404
     assert client.patch("/api/concerts/note/append", json={}).status_code == 404
     assert client.get("/api/concerts/source").status_code == 404

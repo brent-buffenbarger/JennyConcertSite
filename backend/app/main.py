@@ -189,6 +189,20 @@ def create_app(service: Optional[ConcertsService] = None) -> FastAPI:
         item, path = service_call(lambda: service.get_upload_file(media_id))
         return FileResponse(path, media_type=item["mimeType"], filename=item["originalName"], content_disposition_type="inline")
 
+    @app.post(
+        "/api/concerts/refresh",
+        response_model=ConcertsCatalogResponse,
+        tags=["concerts"],
+        summary="Refresh the Concerts export and catalog",
+        description=(
+            "Re-reads the live Concerts note and rebuilds the deterministic catalog. "
+            "OpenAI reviews only new or changed entries; unchanged entries are reused from the enrichment cache."
+        ),
+        response_description="Freshly rebuilt concerts catalog.",
+    )
+    def refresh_catalog(enrich: bool = True, service: ConcertsService = Depends(get_concerts_service)) -> dict:
+        return service_call(lambda: service.refresh_catalog(enrich=enrich))
+
     return app
 
 

@@ -16,7 +16,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: leafletMarkerShadow,
 })
 
-import { fetchConcertMedia, fetchConcertsCatalog, fetchConcertUploads, setArtistImage, uploadConcertMedia } from './lib/api'
+import { fetchConcertMedia, fetchConcertsCatalog, fetchConcertUploads, refreshConcertsCatalog, setArtistImage, uploadConcertMedia } from './lib/api'
 import { createConcertEnricher } from './lib/concert-enrichment'
 
 const ratingRailStyle = {
@@ -1393,6 +1393,7 @@ export default function App() {
   const [selectedConcert, setSelectedConcert] = useState(null)
   const [detailFocus, setDetailFocus] = useState('details')
   const [error, setError] = useState('')
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [syncMessage, setSyncMessage] = useState('')
   const [announcedResultSummary, setAnnouncedResultSummary] = useState('')
   const [, startTransition] = useTransition()
@@ -1515,6 +1516,27 @@ export default function App() {
     window.requestAnimationFrame(() => filterHeadingRef.current?.focus())
   }
 
+  async function refresh() {
+    setError('')
+    setSyncMessage('')
+    setIsRefreshing(true)
+    try {
+      const result = await refreshConcertsCatalog()
+      const [media, uploads] = await Promise.all([
+        fetchConcertMedia().catch(() => null),
+        fetchConcertUploads().catch(() => null),
+      ])
+      startTransition(() => setCatalog(result))
+      if (media) setLiveMediaManifest(media)
+      if (uploads) setConcertUploads(uploads.items || [])
+      setSyncMessage('Synced from Notes.')
+    } catch (caughtError) {
+      setError(caughtError.message)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   async function reloadCatalog() {
     setError('')
     try {
@@ -1612,9 +1634,16 @@ export default function App() {
                   <span className="mt-0.5 block truncate font-display text-2xl uppercase leading-none text-ink sm:text-3xl lg:text-[2.15rem]">Jenny &amp; Brent&rsquo;s Concert Log</span>
                 </span>
               </a>
-              <p className="max-w-[14rem] text-right text-xs font-semibold uppercase tracking-[0.12em] text-ink-muted sm:max-w-none">
-                Notes drives the lineup. The site handles cover art and concert media.
-              </p>
+              <button
+                type="button"
+                onClick={refresh}
+                disabled={isRefreshing}
+                aria-busy={isRefreshing}
+                className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border border-border bg-surface px-3.5 text-sm font-medium text-ink-muted transition hover:border-control-border hover:text-ink disabled:cursor-wait disabled:opacity-60"
+              >
+                <span aria-hidden="true" className={isRefreshing ? 'inline-block animate-spin' : 'inline-block'}>&#8635;</span>
+                {isRefreshing ? 'Syncing' : 'Sync'}
+              </button>
               <p className="sr-only" role="status" aria-live="polite">{syncMessage}</p>
             </div>
 
@@ -1679,7 +1708,7 @@ export default function App() {
                 <p className="mt-4 max-w-xl text-base leading-6 text-ink-muted sm:text-lg sm:leading-7">{collectionDetails[collection].description}</p>
               </div>
               <p className="max-w-sm text-sm leading-6 text-ink-muted lg:self-end">
-                Add or remove concerts in Apple Notes. The website is only for browsing, cover images, and concert media.
+                Managed in Apple Notes.
               </p>
             </div>
 
@@ -1759,10 +1788,10 @@ export default function App() {
 
             {error ? (
               <div role="alert" className="mb-8 rounded-card border border-accent bg-surface p-5 text-ink shadow-card">
-                <h3 className="text-lg font-semibold">The concert list could not be loaded</h3>
+                <h3 className="text-lg font-semibold">{catalog ? 'The concert list could not be synced' : 'The concert list could not be loaded'}</h3>
                 <p className="mt-1 text-base leading-6 text-ink-muted">{error}</p>
-                <button type="button" onClick={reloadCatalog} className="mt-4 inline-flex min-h-11 items-center rounded-control bg-primary px-4 py-2 text-base font-semibold text-surface transition hover:bg-primary-hover">
-                  Try again
+                <button type="button" onClick={catalog ? refresh : reloadCatalog} disabled={isRefreshing} className="mt-4 inline-flex min-h-11 items-center rounded-control bg-primary px-4 py-2 text-base font-semibold text-surface transition hover:bg-primary-hover disabled:cursor-wait">
+                  {catalog ? (isRefreshing ? 'Trying again…' : 'Try syncing again') : 'Try again'}
                 </button>
               </div>
             ) : null}

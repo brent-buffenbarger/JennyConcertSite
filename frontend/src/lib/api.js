@@ -93,3 +93,7 @@ export async function uploadConcertMedia(artist, date, file) {
 
   return response.json()
 }
+
+export function refreshConcertsCatalog({ enrich = true } = {}) {
+  return request(`/api/concerts/refresh?enrich=${enrich}`, { method: 'POST' })
+}
