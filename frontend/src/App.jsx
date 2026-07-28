@@ -16,7 +16,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: leafletMarkerShadow,
 })
 
-import { clearAdminCredential, createConcertEntry, deleteConcertMedia, fetchConcertMedia, fetchConcertsCatalog, fetchConcertUploads, getAdminCredential, refreshConcertsCatalog, setAdminCredential, setArtistImage, updateConcertEntry, uploadConcertMedia } from './lib/api'
+import { fetchConcertMedia, fetchConcertsCatalog, fetchConcertUploads, setArtistImage, uploadConcertMedia } from './lib/api'
 import { createConcertEnricher } from './lib/concert-enrichment'
 
 const ratingRailStyle = {
@@ -699,12 +699,11 @@ function SyncProgress() {
   )
 }
 
-function ConcertMoments({ entry, uploads, onUpload, onDelete }) {
+function ConcertMoments({ entry, uploads, onUpload }) {
   const inputRef = useRef(null)
   const [selectedId, setSelectedId] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
-  const [isDeleting, setIsDeleting] = useState(false)
   const date = concertMediaDate(entry)
   const selected = uploads.find((upload) => upload.id === selectedId) || uploads[0] || null
 
@@ -726,19 +725,6 @@ function ConcertMoments({ entry, uploads, onUpload, onDelete }) {
       setUploadError(caughtError.message)
     } finally {
       setIsUploading(false)
-    }
-  }
-
-  async function deleteSelected() {
-    if (!selected || isDeleting) return
-    setUploadError('')
-    setIsDeleting(true)
-    try {
-      await onDelete(selected)
-    } catch (caughtError) {
-      setUploadError(caughtError.message)
-    } finally {
-      setIsDeleting(false)
     }
   }
 
@@ -778,7 +764,6 @@ function ConcertMoments({ entry, uploads, onUpload, onDelete }) {
                 <p className="text-xs font-semibold uppercase tracking-[0.1em] text-accent">Selected {selected.mediaType === 'video' ? 'video' : 'photo'}</p>
                 <p className="mt-1 truncate text-sm font-semibold leading-5 text-ink" title={selected.originalName}>{selected.originalName}</p>
               </div>
-              <button type="button" onClick={deleteSelected} disabled={!selected || isDeleting} className="inline-flex min-h-11 shrink-0 items-center rounded-control border border-accent px-3 text-sm font-semibold text-accent transition hover:bg-header disabled:cursor-wait disabled:opacity-60 lg:hidden">{isDeleting ? 'Deleting…' : 'Delete'}</button>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-3 sm:mt-4 sm:grid-cols-4 lg:max-h-[15rem] lg:grid-cols-2 lg:content-start lg:overflow-y-auto" aria-label="Concert media thumbnails">
               {uploads.map((upload, index) => (
@@ -791,9 +776,6 @@ function ConcertMoments({ entry, uploads, onUpload, onDelete }) {
                   ) : <img src={upload.url} alt="" className="h-full w-full object-cover" />}
                 </button>
               ))}
-            </div>
-            <div className="mt-2 hidden justify-end lg:mt-auto lg:flex lg:pt-4">
-              <button type="button" onClick={deleteSelected} disabled={!selected || isDeleting} className="inline-flex min-h-11 items-center rounded-control border border-accent px-3 text-sm font-semibold text-accent transition hover:bg-header disabled:cursor-wait disabled:opacity-60">{isDeleting ? 'Deleting…' : 'Delete selected'}</button>
             </div>
           </div>
         </div>
@@ -1166,7 +1148,7 @@ function MediaCredit({ media }) {
   )
 }
 
-function DetailModal({ entry, uploads, focusSection, onClose, onEdit, onUpload, onDeleteUpload, backgroundRef }) {
+function DetailModal({ entry, uploads, focusSection, onClose, onUpdateCoverImage, onUpload, backgroundRef }) {
   const dialogRef = useRef(null)
   const closeRef = useRef(null)
   const onCloseRef = useRef(onClose)
@@ -1328,8 +1310,8 @@ function DetailModal({ entry, uploads, focusSection, onClose, onEdit, onUpload, 
               ) : null}
 
               <div className={`${entry.notes ? 'mt-10' : 'mt-8'} flex flex-wrap gap-2 border-t border-border pt-6 sm:gap-3`}>
-                <button type="button" onClick={() => onEdit(entry)} className="inline-flex min-h-11 items-center rounded-full bg-ink px-5 text-[15px] font-medium text-canvas transition hover:bg-primary">
-                  Edit this entry
+                <button type="button" onClick={() => onUpdateCoverImage(entry)} className="inline-flex min-h-11 items-center rounded-full bg-ink px-5 text-[15px] font-medium text-canvas transition hover:bg-primary">
+                  Update cover image
                 </button>
                 <a href={entry.artistHref} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center rounded-full border border-border px-4 text-[15px] font-medium text-ink-muted transition hover:border-control-border hover:text-ink">
                   More on {entry.artist} <span className="ml-1.5" aria-hidden="true">&#8599;</span><span className="sr-only"> (opens in a new tab)</span>
@@ -1380,7 +1362,7 @@ function DetailModal({ entry, uploads, focusSection, onClose, onEdit, onUpload, 
 
         {hasMomentsTab ? (
           <div id="moments-panel" role="tabpanel" aria-labelledby="moments-tab" hidden={activeTab !== 'moments'} className="dialog-content-gutter bg-surface pb-[max(2rem,env(safe-area-inset-bottom))] md:pb-[max(2.25rem,env(safe-area-inset-bottom))]">
-            <ConcertMoments entry={entry} uploads={uploads} onUpload={onUpload} onDelete={onDeleteUpload} />
+            <ConcertMoments entry={entry} uploads={uploads} onUpload={onUpload} />
           </div>
         ) : null}
       </section>
@@ -1410,50 +1392,11 @@ export default function App() {
   })
   const [selectedConcert, setSelectedConcert] = useState(null)
   const [detailFocus, setDetailFocus] = useState('details')
-  const [editor, setEditor] = useState(null)
-  const [editorError, setEditorError] = useState('')
-  const [isSavingEntry, setIsSavingEntry] = useState(false)
   const [error, setError] = useState('')
-  const [isRefreshing, setIsRefreshing] = useState(false)
   const [syncMessage, setSyncMessage] = useState('')
   const [announcedResultSummary, setAnnouncedResultSummary] = useState('')
-  const [adminSignIn, setAdminSignIn] = useState({ open: false, message: '', afterSignIn: null })
-  const [hasAdminCredential, setHasAdminCredential] = useState(() => Boolean(getAdminCredential()))
   const [, startTransition] = useTransition()
   const deferredQuery = useDeferredValue(query)
-
-  function openAdminSignIn(message, afterSignIn = null) {
-    setAdminSignIn({ open: true, message: message || '', afterSignIn })
-  }
-
-  function handleAdminSubmit(username, password) {
-    setAdminCredential(username, password)
-    setHasAdminCredential(true)
-    const callback = adminSignIn.afterSignIn
-    setAdminSignIn({ open: false, message: '', afterSignIn: null })
-    if (typeof callback === 'function') {
-      // Give React a tick to close the modal before retrying the failed action.
-      window.setTimeout(() => callback(), 0)
-    }
-  }
-
-  function handleAdminSignOut() {
-    clearAdminCredential()
-    setHasAdminCredential(false)
-  }
-
-  // Wrap a mutation call so a 401 auto-opens the sign-in dialog and retries after success.
-  function withAdminAuth(action, contextMessage) {
-    return action().catch((caughtError) => {
-      if (caughtError?.status === 401 || caughtError?.status === 503) {
-        openAdminSignIn(
-          contextMessage || 'Editing the concert log requires the shared password.',
-          () => withAdminAuth(action, contextMessage),
-        )
-      }
-      throw caughtError
-    })
-  }
 
   useEffect(() => {
     try {
@@ -1572,38 +1515,21 @@ export default function App() {
     window.requestAnimationFrame(() => filterHeadingRef.current?.focus())
   }
 
-  async function refresh() {
+  async function reloadCatalog() {
     setError('')
-    setSyncMessage('')
-    setIsRefreshing(true)
     try {
-      const result = await withAdminAuth(() => refreshConcertsCatalog(), 'Syncing from Apple Notes requires the shared password.')
-      const media = await fetchConcertMedia().catch(() => null)
+      const [result, media, uploads] = await Promise.all([
+        fetchConcertsCatalog(),
+        fetchConcertMedia().catch(() => null),
+        fetchConcertUploads().catch(() => null),
+      ])
       startTransition(() => setCatalog(result))
       if (media) setLiveMediaManifest(media)
-      setSyncMessage('Concert list synced.')
+      if (uploads) setConcertUploads(uploads.items || [])
+      setSyncMessage('Concert list reloaded.')
     } catch (caughtError) {
-      // 401/503 already surfaced the sign-in dialog; suppress the top-level error banner for auth cases.
-      if (caughtError?.status !== 401 && caughtError?.status !== 503) setError(caughtError.message)
-    } finally {
-      setIsRefreshing(false)
+      setError(caughtError.message)
     }
-  }
-
-  function openCreateEditor() {
-    setEditorError('')
-    setEditor({ mode: 'create', collection, entry: null })
-  }
-
-  function openEditEditor(entry) {
-    const entryCollection = entry.status === 'seen' ? 'seen' : entry.status === 'upcoming' ? 'upcoming' : 'wishlist'
-    setEditorError('')
-    setEditor({ mode: 'edit', collection: entryCollection, entry })
-  }
-
-  function editFromDetails(entry) {
-    setSelectedConcert(null)
-    openEditEditor(entry)
   }
 
   function openDetails(entry) {
@@ -1625,62 +1551,39 @@ export default function App() {
     if (entry) openMoments(entry)
   }
 
-  async function saveEntry({ raw, artist, imageUrl, entryChanged }) {
-    if (!editor || !catalog) return
-    setEditorError('')
-    setIsSavingEntry(true)
-    const payload = {
-      section: sectionByCollection[editor.collection],
-      raw,
-      expectedModifiedAt: catalog.source.modifiedAt,
-    }
+  async function updateCoverImage(entry) {
+    const currentValue = entry.artistMedia?.rightsClass === 'user-provided' ? entry.artistMedia.imageUrl : ''
+    const imageUrl = window.prompt(`Paste a direct image URL for ${entry.artist}.`, currentValue)
+    if (imageUrl === null) return
+    const nextUrl = imageUrl.trim()
+    if (!nextUrl) return
+
     try {
-      let nextCatalog = catalog
-      if (entryChanged) {
-        const mutate = (mutationPayload) => editor.mode === 'create'
-          ? createConcertEntry(mutationPayload)
-          : updateConcertEntry({ ...mutationPayload, originalRaw: editor.entry.raw })
-        try {
-          const result = await withAdminAuth(() => mutate(payload), 'Saving to the concert log requires the shared password.')
-          nextCatalog = result.catalog
-        } catch (caughtError) {
-          if (caughtError.status !== 409) throw caughtError
-
-          const freshCatalog = await refreshConcertsCatalog({ enrich: false })
-          startTransition(() => setCatalog(freshCatalog))
-          const freshEntries = entriesForSection(freshCatalog, payload.section)
-          const originalStillExists = editor.mode === 'edit' && freshEntries.some((entry) => entry.raw.trim() === editor.entry.raw.trim())
-          const savedEntryExists = freshEntries.some((entry) => entry.raw.trim() === raw)
-          const oldMatchingCount = entriesForSection(catalog, payload.section).filter((entry) => entry.raw.trim() === raw).length
-          const freshMatchingCount = freshEntries.filter((entry) => entry.raw.trim() === raw).length
-          const alreadySaved = editor.mode === 'edit'
-            ? !originalStillExists && savedEntryExists
-            : freshMatchingCount > oldMatchingCount
-
-          if (alreadySaved) {
-            nextCatalog = freshCatalog
-          } else if (editor.mode === 'edit' && !originalStillExists) {
-            throw new Error('This entry was changed elsewhere while you were editing it. The latest version is now loaded; reopen it and try again.')
-          } else {
-            const result = await mutate({ ...payload, expectedModifiedAt: freshCatalog.source.modifiedAt })
-            nextCatalog = result.catalog
-          }
-          setSyncMessage('The note changed while you were editing, so the latest version was synced automatically.')
+      const media = await setArtistImage(entry.artist, nextUrl)
+      setLiveMediaManifest(media)
+      setSelectedConcert((current) => {
+        if (!current || current.artist !== entry.artist) return current
+        return {
+          ...current,
+          imageUrl: nextUrl,
+          imageType: 'artist',
+          artistMedia: {
+            ...(current.artistMedia || {}),
+            imageUrl: nextUrl,
+            rightsClass: 'user-provided',
+            sourceUrl: nextUrl,
+            originalUrl: nextUrl,
+            title: `${entry.artist} custom artist image`,
+            creator: 'User-provided image URL',
+            licenseName: 'Source image',
+            licenseUrl: nextUrl,
+            modifications: 'Displayed remotely and cropped for card display',
+          },
         }
-      }
-      const media = imageUrl
-        ? await withAdminAuth(() => setArtistImage(artist, imageUrl), 'Saving artist artwork requires the shared password.')
-        : await fetchConcertMedia().catch(() => null)
-      startTransition(() => setCatalog(nextCatalog))
-      if (media) setLiveMediaManifest(media)
-      setSyncMessage(entryChanged
-        ? editor.mode === 'create' ? 'Concert added to Apple Notes.' : 'Concert updated in Apple Notes.'
-        : `Updated the artist image for ${artist}.`)
-      setEditor(null)
+      })
+      setSyncMessage(`Updated the cover image for ${entry.artist}.`)
     } catch (caughtError) {
-      if (caughtError?.status !== 401 && caughtError?.status !== 503) setEditorError(caughtError.message)
-    } finally {
-      setIsSavingEntry(false)
+      setError(caughtError.message)
     }
   }
 
@@ -1689,17 +1592,11 @@ export default function App() {
     if (!date) throw new Error('Add a concert date before uploading media.')
     const added = []
     for (const file of files) {
-      const upload = await withAdminAuth(() => uploadConcertMedia(entry.artist, date, file), 'Uploading photos requires the shared password.')
+      const upload = await uploadConcertMedia(entry.artist, date, file)
       added.push(upload)
       setConcertUploads((current) => [...current, upload])
     }
     return added
-  }
-
-  async function deleteConcertUpload(upload) {
-    await withAdminAuth(() => deleteConcertMedia(upload.id), 'Deleting photos requires the shared password.')
-    setConcertUploads((current) => current.filter((item) => item.id !== upload.id))
-    setSyncMessage(`Removed ${upload.originalName} from ${upload.artist}.`)
   }
 
   return (
@@ -1715,38 +1612,9 @@ export default function App() {
                   <span className="mt-0.5 block truncate font-display text-2xl uppercase leading-none text-ink sm:text-3xl lg:text-[2.15rem]">Jenny &amp; Brent&rsquo;s Concert Log</span>
                 </span>
               </a>
-              <div className="flex shrink-0 items-center gap-2">
-                {hasAdminCredential ? (
-                  <button
-                    type="button"
-                    onClick={handleAdminSignOut}
-                    title="Signed in as editor. Click to sign out."
-                    className="inline-flex min-h-10 items-center gap-2 rounded-full border border-border bg-surface px-3 text-sm font-medium text-ink-muted transition hover:border-control-border hover:text-ink"
-                  >
-                    <span aria-hidden="true" className="h-2 w-2 rounded-full bg-primary" />
-                    <span className="hidden sm:inline">Editor</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => openAdminSignIn('Sign in to add shows, upload photos, and sync from Apple Notes.', null)}
-                    className="inline-flex min-h-10 items-center gap-2 rounded-full border border-border bg-surface px-3 text-sm font-medium text-ink-muted transition hover:border-control-border hover:text-ink"
-                  >
-                    <span aria-hidden="true">&#128274;</span>
-                    <span className="hidden sm:inline">Sign in</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={refresh}
-                  disabled={isRefreshing}
-                  aria-busy={isRefreshing}
-                  className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border border-border bg-surface px-3.5 text-sm font-medium text-ink-muted transition hover:border-control-border hover:text-ink disabled:cursor-wait disabled:opacity-60"
-                >
-                  <span aria-hidden="true" className={isRefreshing ? 'inline-block animate-spin' : 'inline-block'}>&#8635;</span>
-                  {isRefreshing ? 'Syncing' : 'Sync'}
-                </button>
-              </div>
+              <p className="max-w-[14rem] text-right text-xs font-semibold uppercase tracking-[0.12em] text-ink-muted sm:max-w-none">
+                Notes drives the lineup. The site handles cover art and concert media.
+              </p>
               <p className="sr-only" role="status" aria-live="polite">{syncMessage}</p>
             </div>
 
@@ -1810,9 +1678,9 @@ export default function App() {
                 <h2 ref={filterHeadingRef} id="collection-title" tabIndex="-1" className="mt-3 font-display text-[3rem] uppercase leading-[0.9] text-ink min-[400px]:text-[3.75rem] sm:mt-4 sm:text-[5rem] lg:text-[6rem]">{collectionDetails[collection].title}</h2>
                 <p className="mt-4 max-w-xl text-base leading-6 text-ink-muted sm:text-lg sm:leading-7">{collectionDetails[collection].description}</p>
               </div>
-              <button type="button" onClick={openCreateEditor} disabled={!catalog} className="group inline-flex min-h-12 shrink-0 items-center gap-2.5 self-start rounded-full bg-ink px-5 text-[15px] font-medium text-canvas transition hover:bg-primary disabled:cursor-wait disabled:bg-ink-muted lg:self-end">
-                <span aria-hidden="true" className="text-lg leading-none">&#43;</span>{collectionDetails[collection].addLabel}
-              </button>
+              <p className="max-w-sm text-sm leading-6 text-ink-muted lg:self-end">
+                Add or remove concerts in Apple Notes. The website is only for browsing, cover images, and concert media.
+              </p>
             </div>
 
             <section aria-labelledby="filter-heading" className="mb-6 sm:mb-8 lg:mb-10">
@@ -1891,10 +1759,10 @@ export default function App() {
 
             {error ? (
               <div role="alert" className="mb-8 rounded-card border border-accent bg-surface p-5 text-ink shadow-card">
-                <h3 className="text-lg font-semibold">{catalog ? 'The concert list could not be synced' : 'The concert list could not be loaded'}</h3>
+                <h3 className="text-lg font-semibold">The concert list could not be loaded</h3>
                 <p className="mt-1 text-base leading-6 text-ink-muted">{error}</p>
-                <button type="button" onClick={refresh} disabled={isRefreshing} className="mt-4 inline-flex min-h-11 items-center rounded-control bg-primary px-4 py-2 text-base font-semibold text-surface transition hover:bg-primary-hover disabled:cursor-wait">
-                  {isRefreshing ? 'Trying again…' : catalog ? 'Try syncing again' : 'Try again'}
+                <button type="button" onClick={reloadCatalog} className="mt-4 inline-flex min-h-11 items-center rounded-control bg-primary px-4 py-2 text-base font-semibold text-surface transition hover:bg-primary-hover">
+                  Try again
                 </button>
               </div>
             ) : null}
@@ -1968,27 +1836,8 @@ export default function App() {
         uploads={uploadsForConcert(selectedConcert, concertUploads)}
         focusSection={detailFocus}
         onClose={() => setSelectedConcert(null)}
-        onEdit={editFromDetails}
+        onUpdateCoverImage={updateCoverImage}
         onUpload={uploadConcertFiles}
-        onDeleteUpload={deleteConcertUpload}
-        backgroundRef={appContentRef}
-      />
-      {editor ? (
-        <EntryEditor
-          editor={editor}
-          isSaving={isSavingEntry}
-          error={editorError}
-          onClose={() => setEditor(null)}
-          onSave={saveEntry}
-          backgroundRef={appContentRef}
-        />
-      ) : null}
-      {isRefreshing ? <SyncProgress /> : null}
-      <AdminSignIn
-        open={adminSignIn.open}
-        message={adminSignIn.message}
-        onClose={() => setAdminSignIn({ open: false, message: '', afterSignIn: null })}
-        onSubmit={handleAdminSubmit}
         backgroundRef={appContentRef}
       />
     </div>

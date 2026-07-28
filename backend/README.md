@@ -43,18 +43,17 @@ uvicorn app.main:app --app-dir backend --reload
 - The deterministic source remains at `data/notes/concerts.catalog.json`.
 - Raw source lines, statuses, and heart ratings are never replaced by the model.
 
-## Notes Mutations
+## Notes-Driven Public API
 
-- `POST /api/concerts/note/entries` adds one entry to `wantToSee`, `haveSeen`, or `futureConcerts`.
-- `PATCH /api/concerts/note/entries` updates exactly one matching entry in its current section.
-- Both operations require the `modifiedAt` value returned with the catalog and reject stale writes with HTTP 409.
-- Successful writes rebuild the exported and parsed catalogs before returning.
-- Add/edit mutations always use the deterministic parser and never call OpenAI; enrichment is reserved for explicit syncs.
-- Apple Notes export/build failures are retried up to three times with a short backoff.
+This site is intentionally **Notes-driven** in production:
+
+- Concert entries are added, removed, and edited in Apple Notes, not through the website.
+- The public API exposes read endpoints plus two write capabilities only:
+  - `PUT /api/concerts/media/artist` stores a validated HTTP(S) image URL as the preferred image for one artist.
+  - `POST /api/concerts/uploads` and `POST /api/concerts/uploads/raw` store website-only concert photos and videos.
+- The backend still knows how to refresh and mutate the Notes-backed catalog internally, but those note-mutation routes are intentionally not exposed over HTTP.
 - Refreshes resolve exact-match Deezer profile images for artists not already present in the live media manifest.
-- `GET /api/concerts/media` returns the live manifest so newly resolved images appear without a frontend rebuild.
-- `PUT /api/concerts/media/artist` stores a validated HTTP(S) image URL as the preferred image for one artist.
-- Deletion and whole-note replacement are intentionally not exposed by the API.
+- `GET /api/concerts/media` returns the live manifest plus venue-details so newly resolved images and geocoded venues appear without a frontend rebuild.
 
 OpenAI enrichment is optional at runtime. Authentication, quota, or service failures emit a backend warning and fall back to the deterministic parser, so a successful Notes write is never reported as failed solely because enrichment is unavailable.
 

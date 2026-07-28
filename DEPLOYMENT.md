@@ -7,7 +7,7 @@ End-to-end walkthrough for shipping Jenny & Brent's Concert Log to the public in
 - **Frontend** (React SPA) → **Cloudflare Pages**. Free, auto-deploys on every push to `main`.
 - **Backend** (FastAPI, needs macOS Notes access) → runs on **your Mac**, exposed to the internet through a free **Cloudflare Tunnel**.
 - **Uploaded photos + Apple Notes** → stay on your Mac. The Mac is the source of truth.
-- **Editing** → protected by HTTP Basic auth. Public browsing is open; adding/editing requires the shared password you set up.
+- **Editing model** → the website is **Notes-driven**. Add/remove concerts in Apple Notes, not from the website. The public site only writes **cover images** and **concert photos/videos**.
 - **Cost:** ~$10/year for the domain. Everything else is free.
 - **Trade-off:** your Mac must stay on and connected for editing and photo uploads to work. If the Mac sleeps or reboots, editing breaks until it's back. Public browsing keeps working if you cache aggressively — see the "Optional resilience" section at the end.
 
@@ -248,23 +248,18 @@ OPENAI_API_KEY=your_api_key_here
 OPENAI_MODEL=gpt-5.6
 OPENAI_ENRICHMENT_ENABLED=true
 
-# NEW: admin credentials for the shared password
-# Pick a long random password. Anyone with these can add/edit/delete on the public site.
-ADMIN_USERNAME=jenny
-ADMIN_PASSWORD=<generate-a-long-random-password>
-
 # NEW: allow the Cloudflare Pages origin(s) to call the API
 # Include both the *.pages.dev URL and your custom domain if you set one up (Part 8).
 ALLOWED_ORIGINS=https://jenny-concerts.pages.dev,https://jennyconcerts.com
 ```
 
-Generate a strong password:
+Restart the backend (`Ctrl+C` in the uvicorn terminal, re-run the `uvicorn` command). The public site can now:
 
-```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(24))"
-```
+- browse the concert archive,
+- upload photos/videos to concerts,
+- update concert cover images.
 
-Restart the backend (`Ctrl+C` in the uvicorn terminal, re-run the `uvicorn` command). Now hit the site &mdash; add a show, sync from Notes, upload a photo. When you first try to save, the site prompts for the username and password you just set. Enter them, they persist for the session.
+The website **cannot** add/remove concerts anymore; do that directly in Apple Notes.
 
 ---
 
@@ -373,14 +368,13 @@ From a device that isn't your Mac (phone, laptop on cellular, incognito browser)
 
 1. Open the site at your custom domain.
 2. Browse. Cards, list view, atlas &mdash; everything should render.
-3. Click **Sign in**. Enter the admin credentials.
-4. Add a test show. It should save.
-5. Open Apple Notes on your Mac and confirm the show is there.
-6. Delete the test show from Apple Notes (or leave it &mdash; it's your log).
-7. Click **Sync** on the site. Confirm the site updates.
+3. Open any concert, switch to **Photos**, and upload a small test image.
+4. Confirm the image appears in the concert and under the **Moments** page.
+5. Open any concert and click **Update cover image**. Paste a direct image URL and confirm the cover updates.
+6. Add a concert manually in Apple Notes, then either refresh the page or wait for your next backend-driven catalog refresh workflow. The venue should appear in the Atlas automatically after the backend geocodes it.
 
 If any step fails, check:
-- **Sign in fails:** wrong credentials in `backend/.env`, or CORS blocked (check browser devtools console).
+- **Cover image or upload requests fail with CORS errors:** `ALLOWED_ORIGINS` in `backend/.env` is missing the site's origin. Restart backend after fixing.
 - **Adding a show 400s or 500s:** backend logs at `/tmp/jenny-backend.log` and `/tmp/jenny-backend.err.log`.
 - **Site loads but no API calls succeed:** the tunnel is down. Run `cloudflared tunnel info jenny-concerts` to check status.
 
@@ -425,16 +419,6 @@ If any step fails, check:
 
 ---
 
-## Rotating the admin password
-
-Edit `backend/.env`, then restart the backend service. `kickstart -k` is the cleanest one-liner &mdash; it stops the current process and starts a fresh one that picks up the new env values:
-
-```bash
-launchctl kickstart -k gui/$(id -u)/com.jenny.concerts-backend
-```
-
-Then click **Editor** in the site's header (small dot in the top-right), sign out, sign back in with the new credential.
-
 ### Managing the launchd services (day-to-day reference)
 
 `$(id -u)` returns your user ID. Every command below assumes the plist at `~/Library/LaunchAgents/com.jenny.concerts-backend.plist`.
@@ -473,8 +457,7 @@ None of these are needed for launch. Add them if the pain shows up.
 | Symptom | Where to look |
 | --- | --- |
 | Site loads but every API call fails with CORS error | `ALLOWED_ORIGINS` in `backend/.env` missing the site's origin. Restart backend after fixing. |
-| Every mutation returns 401 | You aren't signed in. Click the Sign in button in the header. |
-| Every mutation returns 503 | Backend has no `ADMIN_USERNAME`/`ADMIN_PASSWORD` set. |
+| Uploads or cover-image updates 404 | The backend is still on an older build where those routes were protected or missing. Restart the launchd job so it picks up the new code. |
 | `cloudflared` errors on start | `cat ~/.cloudflared/config.yml`; verify the tunnel ID matches the credentials file. |
 | Pages build fails | Check the build log in the Cloudflare Pages dashboard. Usually a missing env var or a build script error. |
 | GitHub Actions CI fails | Click the failed job in the Actions tab; the failure is at the bottom of the log. Fix and push again. |

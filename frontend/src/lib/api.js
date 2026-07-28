@@ -1,5 +1,4 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
-const ADMIN_TOKEN_STORAGE_KEY = 'jenny-concert-admin-token'
 
 function formatErrorDetail(detail) {
   if (Array.isArray(detail)) {
@@ -16,39 +15,6 @@ function formatErrorDetail(detail) {
   return detail
 }
 
-// Read / write the encoded admin credential from session storage. We keep it in memory only
-// so a closed tab clears the credential; a shared machine won't leak it.
-export function getAdminCredential() {
-  try {
-    return window.sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || ''
-  } catch {
-    return ''
-  }
-}
-
-export function setAdminCredential(username, password) {
-  const token = window.btoa(`${username}:${password}`)
-  try {
-    window.sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token)
-  } catch {
-    // Session storage may be blocked in private mode; the caller keeps the credential in memory.
-  }
-  return token
-}
-
-export function clearAdminCredential() {
-  try {
-    window.sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY)
-  } catch {
-    // Ignore storage failures; clearing is best-effort.
-  }
-}
-
-function authorizationHeader() {
-  const token = getAdminCredential()
-  return token ? { Authorization: `Basic ${token}` } : {}
-}
-
 async function request(path, options = {}) {
   const body = options.body
   const isFormData = Boolean(
@@ -56,11 +22,9 @@ async function request(path, options = {}) {
     && typeof FormData !== 'undefined'
     && (body instanceof FormData || body[Symbol.toStringTag] === 'FormData' || typeof body.append === 'function')
   )
-  const requiresAuth = options.requiresAuth === true
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
-      ...(requiresAuth ? authorizationHeader() : {}),
       ...(options.headers || {}),
     },
     ...options,
@@ -93,7 +57,6 @@ export function fetchConcertMedia() {
 export function setArtistImage(artist, imageUrl) {
   return request('/api/concerts/media/artist', {
     method: 'PUT',
-    requiresAuth: true,
     body: JSON.stringify({ artist, imageUrl }),
   })
 }
@@ -111,7 +74,6 @@ export async function uploadConcertMedia(artist, date, file) {
       'X-Concert-Date': date,
       'X-Concert-Filename': file.name || 'upload',
       'X-Concert-Mime-Type': file.type || 'application/octet-stream',
-      ...authorizationHeader(),
     },
     body: file,
   })
@@ -130,36 +92,4 @@ export async function uploadConcertMedia(artist, date, file) {
   }
 
   return response.json()
-}
-
-export function deleteConcertMedia(mediaId) {
-  return request(`/api/concerts/uploads/${mediaId}`, { method: 'DELETE', requiresAuth: true })
-}
-
-export function refreshConcertsCatalog({ enrich = true } = {}) {
-  return request(`/api/concerts/refresh?enrich=${enrich}`, { method: 'POST', requiresAuth: true })
-}
-
-export function createConcertEntry(payload) {
-  return request('/api/concerts/note/entries', {
-    method: 'POST',
-    requiresAuth: true,
-    body: JSON.stringify(payload),
-  })
-}
-
-export function updateConcertEntry(payload) {
-  return request('/api/concerts/note/entries', {
-    method: 'PATCH',
-    requiresAuth: true,
-    body: JSON.stringify(payload),
-  })
-}
-
-export function appendConcertLine(line) {
-  return request('/api/concerts/note/append', {
-    method: 'PATCH',
-    requiresAuth: true,
-    body: JSON.stringify({ line }),
-  })
 }
