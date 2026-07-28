@@ -46,6 +46,21 @@ async function request(path, options = {}) {
   return response.json()
 }
 
+function absoluteApiUrl(value) {
+  if (!value || typeof value !== 'string') return value
+  if (/^https?:\/\//i.test(value)) return value
+  if (!value.startsWith('/')) return value
+  return API_BASE_URL ? `${API_BASE_URL}${value}` : value
+}
+
+function normalizeUploadItem(item) {
+  if (!item || typeof item !== 'object') return item
+  return {
+    ...item,
+    url: absoluteApiUrl(item.url),
+  }
+}
+
 export function fetchConcertsCatalog() {
   return request('/api/concerts/catalog')
 }
@@ -62,7 +77,10 @@ export function setArtistImage(artist, imageUrl) {
 }
 
 export function fetchConcertUploads() {
-  return request('/api/concerts/uploads')
+  return request('/api/concerts/uploads').then((payload) => ({
+    ...payload,
+    items: Array.isArray(payload.items) ? payload.items.map(normalizeUploadItem) : [],
+  }))
 }
 
 export async function uploadConcertMedia(artist, date, file) {
@@ -91,7 +109,8 @@ export async function uploadConcertMedia(artist, date, file) {
     throw error
   }
 
-  return response.json()
+  const payload = await response.json()
+  return normalizeUploadItem(payload)
 }
 
 export function refreshConcertsCatalog({ enrich = true } = {}) {
