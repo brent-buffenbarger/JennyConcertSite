@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+
+
+PUBLISH_TOKEN = "publish-notes-token"
+
+
+@pytest.fixture(autouse=True)
+def _publish_token(monkeypatch):
+    monkeypatch.setenv("PUBLISH_NOTES_TOKEN", PUBLISH_TOKEN)
 
 
 class FakeConcertsService:
@@ -176,6 +185,7 @@ def test_publish_notes_route_accepts_note_body_and_returns_catalog() -> None:
     client = TestClient(create_app(FakeConcertsService()))
     response = client.post(
         "/api/concerts/publish-notes",
+        headers={"X-Publish-Token": PUBLISH_TOKEN},
         json={
             "bodyText": "Concerts\n\nWant to see\n\nGlass Animals",
             "title": "Concerts",
@@ -187,6 +197,36 @@ def test_publish_notes_route_accepts_note_body_and_returns_catalog() -> None:
     assert payload["action"] == "publish_notes"
     assert payload["sourceDevice"] == "Jenny's iPhone"
     assert payload["catalog"]["source"]["title"] == "Concerts"
+
+
+def test_publish_notes_requires_token() -> None:
+    client = TestClient(create_app(FakeConcertsService()))
+    response = client.post(
+        "/api/concerts/publish-notes",
+        json={"bodyText": "Concerts\n\nWant to see\n\nGlass Animals"},
+    )
+    assert response.status_code == 401
+
+
+def test_publish_notes_rejects_wrong_token() -> None:
+    client = TestClient(create_app(FakeConcertsService()))
+    response = client.post(
+        "/api/concerts/publish-notes",
+        headers={"X-Publish-Token": "wrong-token"},
+        json={"bodyText": "Concerts\n\nWant to see\n\nGlass Animals"},
+    )
+    assert response.status_code == 401
+
+
+def test_publish_notes_returns_503_when_token_not_configured(monkeypatch) -> None:
+    monkeypatch.delenv("PUBLISH_NOTES_TOKEN", raising=False)
+    client = TestClient(create_app(FakeConcertsService()))
+    response = client.post(
+        "/api/concerts/publish-notes",
+        headers={"X-Publish-Token": PUBLISH_TOKEN},
+        json={"bodyText": "Concerts\n\nWant to see\n\nGlass Animals"},
+    )
+    assert response.status_code == 503
 
 
 def test_get_endpoints_do_not_require_auth() -> None:

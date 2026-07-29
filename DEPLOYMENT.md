@@ -251,6 +251,11 @@ OPENAI_ENRICHMENT_ENABLED=true
 # NEW: allow the Cloudflare Pages origin(s) to call the API
 # Include both the *.pages.dev URL and your custom domain if you set one up (Part 8).
 ALLOWED_ORIGINS=https://jenny-concerts.pages.dev,https://jennyconcerts.com
+
+# NEW: shared secret for the future cloud publish path.
+# A Shortcut will send this in the X-Publish-Token header when it pushes the
+# latest Concerts note body to a hosted backend.
+PUBLISH_NOTES_TOKEN=change-me-to-a-long-random-string
 ```
 
 Restart the backend (`Ctrl+C` in the uvicorn terminal, re-run the `uvicorn` command). The public site can now:
@@ -260,6 +265,10 @@ Restart the backend (`Ctrl+C` in the uvicorn terminal, re-run the `uvicorn` comm
 - update concert cover images.
 
 The website **cannot** add/remove concerts anymore; do that directly in Apple Notes.
+
+When you later move the backend onto an always-on host, this same
+`PUBLISH_NOTES_TOKEN` is what your trusted Shortcut devices will use to call
+`POST /api/concerts/publish-notes`.
 
 ---
 
@@ -437,6 +446,81 @@ If any step fails, check:
 `launchctl list | grep jenny` output columns are **PID, exit status, label**. PID `-` means the job is registered but not currently running (usually because it just crashed &mdash; check the stderr log). A number means it's alive.
 
 If `launchctl print` reports `state = not running` or the PID keeps changing, the process is crash-looping. Check `/tmp/jenny-backend.err.log` for the traceback.
+
+---
+
+## Part 10 &mdash; Shortcut publish path (for the future hosted backend)
+
+When you move the backend off the Mac and onto an always-on host, Apple Notes can
+stay the editor by having a Shortcut publish the note body to the cloud API.
+
+### 10a. The endpoint
+
+The backend now exposes:
+
+```http
+POST /api/concerts/publish-notes
+```
+
+Headers:
+
+```http
+X-Publish-Token: <the same value as PUBLISH_NOTES_TOKEN>
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "bodyText": "Concerts\n\nWant to see\n\nGlass Animals",
+  "title": "Concerts",
+  "noteId": "optional-stable-device-note-id",
+  "account": "iCloud",
+  "folder": "Notes",
+  "modifiedAt": "2026-07-29T04:12:00Z",
+  "sourceDevice": "Jenny's iPhone"
+}
+```
+
+Only `bodyText` is required. The other fields improve provenance and help debug which device last published.
+
+### 10b. Shortcut actions (high-level)
+
+On each trusted device (2 phones + 1 laptop), create a Shortcut called `Publish Concerts`:
+
+1. **Find Notes** → locate the `Concerts` note.
+2. **Get Details of Note** → capture the note body as plain text.
+3. **Dictionary** → build the JSON body above.
+4. **Get Contents of URL**
+   - URL: `https://api.<your-domain>/api/concerts/publish-notes`
+   - Method: `POST`
+   - Headers:
+     - `X-Publish-Token`: your shared secret
+     - `Content-Type`: `application/json`
+   - Request body: JSON
+5. **Show Result** → display the backend response so you know the publish succeeded.
+
+### 10c. Tap target inside Notes
+
+At the top of the note, add a tappable link like:
+
+```text
+shortcuts://run-shortcut?name=Publish%20Concerts
+```
+
+Label it `Publish Concerts`.
+
+That gives Jenny a one-tap path from Notes → cloud publish.
+
+### 10d. Why this matters
+
+This endpoint is the first building block for moving the public site off the Mac while keeping Apple Notes as the editor:
+
+- Jenny still edits the note in Apple Notes.
+- The Shortcut pushes the latest note text to the cloud backend.
+- The cloud backend rebuilds the catalog from that published note.
+- The public site reads from the hosted backend, so uptime no longer depends on your laptop being awake.
 
 ---
 

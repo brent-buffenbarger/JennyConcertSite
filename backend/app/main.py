@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from tempfile import SpooledTemporaryFile
 from typing import Optional
 
@@ -21,6 +22,27 @@ from .services.concerts import ConcertsConflictError, ConcertsService, ConcertsS
 
 def get_concerts_service(request: Request) -> ConcertsService:
     return request.app.state.concerts_service
+
+
+def require_publish_token(x_publish_token: Optional[str] = Header(default=None)) -> None:
+    """Guard the cloud publish endpoint with a shared secret.
+
+    Notes remain the editor, but the public backend still needs to know that the
+    caller is one of the trusted Shortcut devices (or another trusted publisher).
+    A missing token means the publish path is not configured yet. A wrong token is
+    an auth failure.
+    """
+    expected = os.getenv("PUBLISH_NOTES_TOKEN", "").strip()
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Publish Notes is not configured on this backend. Set PUBLISH_NOTES_TOKEN.",
+        )
+    if not x_publish_token or not secrets.compare_digest(x_publish_token.encode(), expected.encode()):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid publish token.",
+        )
 
 def service_call(action):
     try:
@@ -217,6 +239,7 @@ def create_app(service: Optional[ConcertsService] = None) -> FastAPI:
             "for keeping the website in sync while Apple Notes remains the editor."
         ),
         response_description="Publish result and refreshed catalog.",
+        dependencies=[Depends(require_publish_token)],
     )
     def publish_notes(payload: PublishNotesRequest, service: ConcertsService = Depends(get_concerts_service)) -> dict:
         published_at = payload.modifiedAt or ""

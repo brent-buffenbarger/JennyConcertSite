@@ -20,6 +20,7 @@ Add your API key to `backend/.env`:
 OPENAI_API_KEY=your_api_key_here
 OPENAI_MODEL=gpt-5.6
 OPENAI_ENRICHMENT_ENABLED=true
+PUBLISH_NOTES_TOKEN=change-me-to-a-long-random-string
 ```
 
 `backend/.env` is ignored by Git. Never expose `OPENAI_API_KEY` to the frontend or commit it.
@@ -51,9 +52,39 @@ This site is intentionally **Notes-driven** in production:
 - The public API exposes read endpoints plus two write capabilities only:
   - `PUT /api/concerts/media/artist` stores a validated HTTP(S) image URL as the preferred image for one artist.
   - `POST /api/concerts/uploads` and `POST /api/concerts/uploads/raw` store website-only concert photos and videos.
+- A third trusted-device path exists for cloud hosting:
+  - `POST /api/concerts/publish-notes` accepts the full Concerts note body from a Shortcut, rebuilds the catalog on the server, and returns the refreshed catalog.
+  - This route is protected by the `X-Publish-Token` header and the `PUBLISH_NOTES_TOKEN` env var.
 - The backend still knows how to refresh and mutate the Notes-backed catalog internally, but those note-mutation routes are intentionally not exposed over HTTP.
 - Refreshes resolve exact-match Deezer profile images for artists not already present in the live media manifest.
 - `GET /api/concerts/media` returns the live manifest plus venue-details so newly resolved images and geocoded venues appear without a frontend rebuild.
+
+### Publish Notes request shape
+
+`POST /api/concerts/publish-notes`
+
+Headers:
+
+```http
+X-Publish-Token: <your-shared-secret>
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "bodyText": "Concerts\n\nWant to see\n\nGlass Animals",
+  "title": "Concerts",
+  "noteId": "optional-stable-device-note-id",
+  "account": "iCloud",
+  "folder": "Notes",
+  "modifiedAt": "2026-07-29T04:12:00Z",
+  "sourceDevice": "Jenny's iPhone"
+}
+```
+
+Minimum required field is `bodyText`. The optional metadata improves provenance and makes it easier to debug which device last published.
 
 OpenAI enrichment is optional at runtime. Authentication, quota, or service failures emit a backend warning and fall back to the deterministic parser, so a successful Notes write is never reported as failed solely because enrichment is unavailable.
 
