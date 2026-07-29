@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 import hashlib
 import os
@@ -110,6 +111,19 @@ class ConcertsService:
     def get_raw_export(self) -> Dict[str, Any]:
         return self._read_json(self.raw_export_path)
 
+    @staticmethod
+    def _normalize_line_separators(value: str) -> str:
+        return str(value or "").replace("\r\n", "\n").replace("\r", "\n")
+
+    @classmethod
+    def _text_to_note_html(cls, body_text: str) -> str:
+        normalized = cls._normalize_line_separators(body_text).strip()
+        if not normalized:
+            return "<div><br></div>\n"
+        blocks = normalized.split("\n\n")
+        html_blocks = [f"<div>{html.escape(block).replace(chr(10), '<br>')}</div>" for block in blocks]
+        return "\n".join(html_blocks) + "\n"
+
     def get_media_manifest(self) -> Dict[str, Any]:
         manifest = self._read_json(self.media_manifest_path)
         # Attach venue-details so the frontend has one place to pull dynamic venue data.
@@ -125,6 +139,41 @@ class ConcertsService:
             return self._read_json(self.venue_details_path)
         except ConcertsServiceError:
             return {"schemaVersion": 1, "generatedAt": None, "venues": []}
+
+    def publish_notes(
+        self,
+        *,
+        body_text: str,
+        title: str = "Concerts",
+        note_id: Optional[str] = None,
+        account: Optional[str] = None,
+        folder: Optional[str] = None,
+        modified_at: Optional[str] = None,
+        source_device: Optional[str] = None,
+        enrich: bool = False,
+    ) -> Dict[str, Any]:
+        published_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        note_payload = {
+            "source": "Shortcut Publish",
+            "noteCount": 1,
+            "notes": [{
+                "id": note_id or "shortcut-publish:concerts",
+                "name": title,
+                "account": account or "Published",
+                "folder": folder or (f"Shortcut: {source_device}" if source_device else "Shortcut Publish"),
+                "createdAt": published_at,
+                "modifiedAt": modified_at or published_at,
+                "bodyHtml": self._text_to_note_html(body_text),
+                "bodyText": self._normalize_line_separators(body_text).strip(),
+            }],
+            "exportedAt": published_at,
+        }
+        self.raw_export_path.parent.mkdir(parents=True, exist_ok=True)
+        self.base_catalog_path.parent.mkdir(parents=True, exist_ok=True)
+        self.raw_export_path.write_text(json.dumps(note_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        self._run_node_script("scripts/build-concerts-catalog.mjs")
+        base = self._read_json(self.base_catalog_path)
+        return self._finalize_catalog(base, enrich=enrich)
 
     def set_artist_image(self, artist: str, image_url: str) -> Dict[str, Any]:
         manifest = self.get_media_manifest()
@@ -271,6 +320,9 @@ class ConcertsService:
 
     def refresh_catalog(self, enrich: bool = True) -> Dict[str, Any]:
         base = self._refresh_base_catalog()
+        return self._finalize_catalog(base, enrich=enrich)
+
+    def _finalize_catalog(self, base: Dict[str, Any], enrich: bool = True) -> Dict[str, Any]:
         if self.enricher is None or not enrich:
             catalog = base
         else:

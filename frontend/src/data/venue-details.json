@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-22T06:17:07.292446Z",
+  "generatedAt": "2026-07-28T03:13:50.146403Z",
   "venues": [
     {
       "key": "east end studios",
@@ -299,6 +299,90 @@
       "lng": -118.3392,
       "verified": true,
       "source": "curated"
+    },
+    {
+      "key": "the troubadour",
+      "names": [
+        "The Troubadour"
+      ],
+      "name": "The Troubadour",
+      "city": "Greater London, England",
+      "neighborhood": "Earl's Court",
+      "venueType": null,
+      "lat": 51.4888643,
+      "lng": -0.1916335,
+      "verified": false,
+      "source": "nominatim"
+    },
+    {
+      "key": "the bellwether",
+      "names": [
+        "The Bellwether"
+      ],
+      "name": "The Bellwether",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Downtown",
+      "venueType": null,
+      "lat": 34.0562378,
+      "lng": -118.2584445,
+      "verified": false,
+      "source": "nominatim"
+    },
+    {
+      "key": "the teragram ballroom",
+      "names": [
+        "The Teragram Ballroom"
+      ],
+      "name": "The Teragram Ballroom",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Westlake South",
+      "venueType": "theater",
+      "lat": 34.0516899,
+      "lng": -118.2671329,
+      "verified": false,
+      "source": "nominatim"
+    },
+    {
+      "key": "el rey theatre",
+      "names": [
+        "El Rey Theatre"
+      ],
+      "name": "El Rey Theatre",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Miracle Mile",
+      "venueType": "theater",
+      "lat": 34.0626321,
+      "lng": -118.3489122,
+      "verified": false,
+      "source": "nominatim"
+    },
+    {
+      "key": "the moroccan lounge",
+      "names": [
+        "The Moroccan Lounge"
+      ],
+      "name": "The Moroccan Lounge",
+      "city": "Los Angeles, CA",
+      "neighborhood": "Chinatown",
+      "venueType": null,
+      "lat": 34.0487467,
+      "lng": -118.2336858,
+      "verified": false,
+      "source": "nominatim"
+    },
+    {
+      "key": "fiddlers green ampitheater co",
+      "names": [
+        "Fiddlers Green Ampitheater CO"
+      ],
+      "name": "Fiddlers Green Ampitheater CO",
+      "city": null,
+      "neighborhood": null,
+      "venueType": null,
+      "lat": null,
+      "lng": null,
+      "verified": false,
+      "source": "unresolved"
     }
   ]
 }

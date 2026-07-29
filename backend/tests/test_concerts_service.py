@@ -19,6 +19,32 @@ class StubConcertsService(ConcertsService):
         self.commands.append((relative_script_path, args))
 
 
+class PublishStubConcertsService(StubConcertsService):
+    """Simulate build-concerts-catalog.mjs by writing a deterministic catalog file."""
+
+    def _run_node_script(self, relative_script_path: str, *args: str) -> None:
+        super()._run_node_script(relative_script_path, *args)
+        if relative_script_path == "scripts/build-concerts-catalog.mjs":
+            # Very small deterministic catalog the publish flow can read back.
+            write_json(self.base_catalog_path, {
+                "schemaVersion": 2,
+                "source": {
+                    "noteId": "shortcut-publish:concerts",
+                    "title": "Concerts",
+                    "account": "Published",
+                    "folder": "Shortcut Publish",
+                    "createdAt": "2026-07-29T00:00:00Z",
+                    "modifiedAt": "2026-07-29T00:00:00Z",
+                    "exportedAt": "2026-07-29T00:00:00Z",
+                },
+                "rawExport": {
+                    "bodyHtml": "<div>Concerts</div>\n",
+                    "bodyText": "Concerts\n\nWant to see\n\nGlass Animals",
+                },
+                "parsedCatalog": {"wantToSee": [{"artist": "Glass Animals", "parsed": {"venue": None}}], "haveSeen": [], "futureConcerts": []},
+            })
+
+
 class FailingEnricher:
     def __init__(self) -> None:
         self.calls = 0
@@ -71,6 +97,27 @@ def test_refresh_catalog_retries_transient_notes_failure(tmp_path: Path, monkeyp
         ("scripts/export-concerts-notes.mjs", ()),
         ("scripts/build-concerts-catalog.mjs", ()),
     ]
+
+
+def test_publish_notes_writes_export_and_rebuilds_catalog_without_apple_notes(tmp_path: Path) -> None:
+    service = PublishStubConcertsService(tmp_path)
+
+    result = service.publish_notes(
+        body_text="Concerts\n\nWant to see\n\nGlass Animals",
+        title="Concerts",
+        source_device="Jenny's iPhone",
+        enrich=False,
+    )
+
+    export_payload = json.loads(service.raw_export_path.read_text(encoding="utf-8"))
+    assert export_payload["source"] == "Shortcut Publish"
+    assert export_payload["noteCount"] == 1
+    assert export_payload["notes"][0]["bodyText"] == "Concerts\n\nWant to see\n\nGlass Animals"
+    assert export_payload["notes"][0]["folder"] == "Shortcut: Jenny's iPhone"
+    assert service.commands[0] == ("scripts/build-concerts-catalog.mjs", ())
+    assert service.commands[1][0] == "scripts/ensure-concert-artist-media.mjs"
+    assert result["schemaVersion"] == 2
+    assert result["parsedCatalog"]["wantToSee"][0]["artist"] == "Glass Animals"
 
 
 def test_append_line_runs_mutation_then_refresh(tmp_path: Path) -> None:

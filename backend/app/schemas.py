@@ -161,3 +161,29 @@ class MutationResponse(BaseModel):
     action: str = Field(description="Mutation action that was performed.")
     detail: str = Field(description="Human-readable description of the mutation result.")
     catalog: ConcertsCatalogResponse
+
+
+class PublishNotesRequest(BaseModel):
+    bodyText: str = Field(..., min_length=1, description="Full plain-text body of the Concerts note.")
+    title: str = Field(default="Concerts", min_length=1, max_length=200, description="Note title as seen in Apple Notes.")
+    noteId: Optional[str] = Field(default=None, max_length=500, description="Optional stable note identifier from the publishing device.")
+    account: Optional[str] = Field(default=None, max_length=200, description="Optional source account name, for example iCloud.")
+    folder: Optional[str] = Field(default=None, max_length=200, description="Optional source folder name.")
+    modifiedAt: Optional[str] = Field(default=None, max_length=100, description="Optional note-modified timestamp from the publishing device.")
+    sourceDevice: Optional[str] = Field(default=None, max_length=200, description="Optional human-readable device name, for example Jenny's iPhone.")
+
+    @field_validator("bodyText", "title", mode="before")
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        normalized = str(value or "").strip()
+        if not normalized:
+            raise ValueError("Value is required.")
+        return normalized
+
+
+class PublishNotesResponse(BaseModel):
+    action: str = Field(default="publish_notes")
+    detail: str = Field(description="Human-readable publish result.")
+    publishedAt: str = Field(description="Server timestamp when the note was published.")
+    sourceDevice: Optional[str] = Field(default=None, description="Device name provided by the publisher, when available.")
+    catalog: ConcertsCatalogResponse

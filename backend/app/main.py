@@ -13,6 +13,8 @@ from .schemas import (
     ConcertUpload,
     ConcertUploadList,
     ConcertsCatalogResponse,
+    PublishNotesRequest,
+    PublishNotesResponse,
 )
 from .services.concerts import ConcertsConflictError, ConcertsService, ConcertsServiceError, ConcertUploadError
 
@@ -202,6 +204,39 @@ def create_app(service: Optional[ConcertsService] = None) -> FastAPI:
     )
     def refresh_catalog(enrich: bool = True, service: ConcertsService = Depends(get_concerts_service)) -> dict:
         return service_call(lambda: service.refresh_catalog(enrich=enrich))
+
+    @app.post(
+        "/api/concerts/publish-notes",
+        response_model=PublishNotesResponse,
+        tags=["concerts"],
+        summary="Publish the Concerts note from a Shortcut or another Notes client",
+        description=(
+            "Accepts the raw plain-text body of the Concerts note from a Shortcut, "
+            "writes the exported note JSON on the server, rebuilds the structured catalog, "
+            "and returns the refreshed catalog. This endpoint is the cloud-friendly path "
+            "for keeping the website in sync while Apple Notes remains the editor."
+        ),
+        response_description="Publish result and refreshed catalog.",
+    )
+    def publish_notes(payload: PublishNotesRequest, service: ConcertsService = Depends(get_concerts_service)) -> dict:
+        published_at = payload.modifiedAt or ""
+        catalog = service_call(lambda: service.publish_notes(
+            body_text=payload.bodyText,
+            title=payload.title,
+            note_id=payload.noteId,
+            account=payload.account,
+            folder=payload.folder,
+            modified_at=payload.modifiedAt,
+            source_device=payload.sourceDevice,
+            enrich=False,
+        ))
+        return {
+            "action": "publish_notes",
+            "detail": "Published the latest Concerts note to the website.",
+            "publishedAt": catalog.get("source", {}).get("exportedAt") or published_at,
+            "sourceDevice": payload.sourceDevice,
+            "catalog": catalog,
+        }
 
     return app
 
